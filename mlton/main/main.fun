@@ -638,6 +638,8 @@ fun makeOptions {usage} =
         (fn s => mathLinkOpt := s)),
        (Expert, "max-function-size", " <n>", "max function size (blocks)",
         intRef maxFunctionSize),
+       (Expert, "max-type-print-depth", " <n>", "Maximum depth when printing IL types (0 means 'print fully'). For now, only supported by SSA.",
+        intRef maxTypePrintDepth),
        (Normal, "mlb-path-map", " <file>", "additional MLB path map",
         SpaceString (fn s => mlbPathVars := !mlbPathVars @ readMlbPathMap s)),
        (Normal, "mlb-path-var", " '<name> <value>'", "additional MLB path var",
@@ -727,6 +729,43 @@ fun makeOptions {usage} =
                       | NONE => usage (concat ["invalid -shallow-flatten-policy flag: ", s]))),
        (Expert, "shallow-flatten-max-iters", " <n>", "limit the number of shallow flattening iterations (1)",
         Int (fn n => shallowFlattenMaxIters := n)),
+       (Expert, "pre-flatten-max-iters", " <n>", "limit the number of pre-flattening iterations (0)",
+        Int (fn n => preFlattenMaxIters := n)),
+       (Expert, "preFlatten-flatten-max-iters", " <n>", "limit the number of pre-flattening iterations (0)",
+        Int (fn n => preFlattenMaxIters := n)),
+       (Expert, "pre-flatten-recursive-steps", " <n>", "limit the number of recursive pre-flattening steps (0)",
+        Int (fn n => preFlattenRecursiveSteps := n)),
+       (Expert, "flatten-iters", " <n>", "limit the number of flattening iterations (1)",
+        Int (fn n => flattenIters := n)),
+       (Expert, "pre-flatten-consumer-policy", " {always|any_unpack|all_unpack}", "set pre-flattening consumer policy (always)",
+        SpaceString (fn s =>
+                     case PreFlattenConsumerPolicy.fromString s of
+                        SOME p => preFlattenConsumerPolicy := p
+                      | NONE => usage (concat ["invalid -pre-flatten-consumer-policy flag: ", s]))),
+       (Expert, "pre-flatten-resolve-policy", " {local|global}", "set pre-flattening resolve policy (local)",
+        SpaceString (fn s =>
+                     case PreFlattenResolvePolicy.fromString s of
+                        SOME p => preFlattenResolvePolicy := p
+                      | NONE => usage (concat ["invalid -pre-flatten-resolve-policy flag: ", s]))),
+       (Expert, "pre-flatten-types-policy", " {any|tuple|con}", "set pre-flattening types policy (tuple)",
+        SpaceString (fn s =>
+                     case PreFlattenTypesPolicy.fromString s of
+                        SOME p => preFlattenTypesPolicy := p
+                      | NONE => usage (concat ["invalid -pre-flatten-types-policy flag: ", s]))),
+       (Expert, "pre-flatten-post-steps", " step1,step2,...", "set pre-flattening post steps (shrink)",
+        SpaceString (fn s =>
+                     preFlattenPostSteps :=
+                     List.map (String.tokens (s, fn c => c = #","), fn s =>
+                               case PreFlattenPostStep.fromString s of
+                                  SOME p => p
+                                | NONE => usage (concat ["invalid -pre-flatten-post-steps flag: ", s])))),
+       (Expert, "pre-flatten-level-steps", " step1,step2,...", "set pre-flattening level steps (function)",
+        SpaceString (fn s =>
+                     preFlattenLevelSteps :=
+                     List.map (String.tokens (s, fn c => c = #","), fn s =>
+                               case PreFlattenLevelStep.fromString s of
+                                  SOME p => p
+                                | NONE => usage (concat ["invalid -pre-flatten-level-steps flag: ", s])))),
        (Expert, "pi-style", " {default|npi|pic|pie}", "position-independent style",
         SpaceString (fn s =>
                      (case (s, PositionIndependentStyle.fromString s) of

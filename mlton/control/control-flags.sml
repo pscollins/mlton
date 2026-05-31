@@ -1390,6 +1390,130 @@ val shallowFlattenPolicy =
             default = ShallowFlattenPolicy.MaxWidth 3,
             toString = ShallowFlattenPolicy.toString}
 
+val preFlattenMaxIters =
+   control {name = "pre-flatten-max-iters",
+            default = 0,
+            toString = Int.toString}
+
+val preFlattenRecursiveSteps =
+   control {name = "pre-flatten-recursive-steps",
+            default = 0,
+            toString = Int.toString}
+
+val flattenIters =
+   control {name = "flatten-iters",
+            default = 1,
+            toString = Int.toString}
+
+structure PreFlattenConsumerPolicy =
+   struct
+      datatype t = Always | AnyUnpack | AllUnpack
+
+      val toString =
+         fn Always => "always"
+          | AnyUnpack => "any_unpack"
+          | AllUnpack => "all_unpack"
+
+      val fromString =
+         fn "always" => SOME Always
+          | "any_unpack" => SOME AnyUnpack
+          | "all_unpack" => SOME AllUnpack
+          | _ => NONE
+   end
+
+datatype preFlattenConsumerPolicy = datatype PreFlattenConsumerPolicy.t
+
+val preFlattenConsumerPolicy =
+   control {name = "pre-flatten-consumer-policy",
+            default = PreFlattenConsumerPolicy.Always,
+            toString = PreFlattenConsumerPolicy.toString}
+
+structure PreFlattenResolvePolicy =
+   struct
+      datatype t = Global | Local
+
+      val toString =
+         fn Global => "global"
+          | Local => "local"
+
+      val fromString =
+         fn "global" => SOME Global
+          | "local" => SOME Local
+          | _ => NONE
+   end
+
+datatype preFlattenResolvePolicy = datatype PreFlattenResolvePolicy.t
+
+val preFlattenResolvePolicy =
+   control {name = "pre-flatten-resolve-policy",
+            default = PreFlattenResolvePolicy.Local,
+            toString = PreFlattenResolvePolicy.toString}
+
+structure PreFlattenTypesPolicy =
+   struct
+      datatype t = Any | Tuple | Con
+
+      val toString =
+         fn Any => "any"
+          | Tuple => "tuple"
+          | Con => "con"
+
+      val fromString =
+         fn "any" => SOME Any
+          | "tuple" => SOME Tuple
+          | "con" => SOME Con
+          | _ => NONE
+   end
+
+datatype preFlattenTypesPolicy = datatype PreFlattenTypesPolicy.t
+
+val preFlattenTypesPolicy =
+   control {name = "pre-flatten-types-policy",
+            default = PreFlattenTypesPolicy.Tuple,
+            toString = PreFlattenTypesPolicy.toString}
+
+structure PreFlattenPostStep =
+   struct
+      datatype t = Flatten | Shrink
+
+      val toString =
+         fn Flatten => "flatten"
+          | Shrink => "shrink"
+
+      val fromString =
+         fn "flatten" => SOME Flatten
+          | "shrink" => SOME Shrink
+          | _ => NONE
+   end
+
+datatype preFlattenPostStep = datatype PreFlattenPostStep.t
+
+val preFlattenPostSteps =
+   control {name = "pre-flatten-post-steps",
+            default = [PreFlattenPostStep.Shrink],
+            toString = List.toString PreFlattenPostStep.toString}
+
+structure PreFlattenLevelStep =
+   struct
+      datatype t = Block | Function
+
+      val toString =
+         fn Block => "block"
+          | Function => "function"
+
+      val fromString =
+         fn "block" => SOME Block
+          | "function" => SOME Function
+          | _ => NONE
+   end
+
+datatype preFlattenLevelStep = datatype PreFlattenLevelStep.t
+
+val preFlattenLevelSteps =
+   control {name = "pre-flatten-level-steps",
+            default = [PreFlattenLevelStep.Function],
+            toString = List.toString PreFlattenLevelStep.toString}
+
 structure PositionIndependentStyle =
    struct
       datatype t =
@@ -1573,6 +1697,10 @@ val showDefUse = control {name = "show def-use",
 val showTypes = control {name = "show types",
                          default = true,
                          toString = Bool.toString}
+
+val maxTypePrintDepth = control {name = "maxTypePrintDepth",
+                                 default = 0,
+                                 toString = Int.toString}
 
 structure SignalCheck =
    struct

@@ -42,8 +42,11 @@ local
    ssa-transform.sig
    flatten-util.sig
    flatten-util.fun
+   flatten.fun
    shallow-flatten.sig
    shallow-flatten.fun
+   pre-flatten.sig
+   pre-flatten.fun
    ssa2-transform.sig
    common-arg.fun
    common-block.fun
@@ -57,7 +60,6 @@ local
    contify.fun
    deep-flatten.fun
    duplicate-globals.fun
-   flatten.fun
    inline.sig
    inline.fun
    introduce-loops.fun
@@ -96,10 +98,12 @@ local
 in
    signature SSA
    signature SSA2
+   signature PRE_FLATTEN
 
    functor Ssa
    functor Ssa2
    functor ShallowFlatten
+   functor PreFlatten
    functor FlattenUtil
    functor SsaToSsa2
 end

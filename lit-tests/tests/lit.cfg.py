@@ -30,6 +30,11 @@ config.substitutions.append(('mlton-print-c', MLTON_PRINT_C_TOOL))
 MLTON_COMPILE_TOOL = str(TOOLS_ROOT / 'mlton-compile.sh')
 config.substitutions.append(('mlton-compile', MLTON_COMPILE_TOOL))
 
+# Map mpl- tools to mlton- tools for ported tests
+config.substitutions.append(('mpl-run', MLTON_RUN_TOOL))
+config.substitutions.append(('mpl-print-c', MLTON_PRINT_C_TOOL))
+config.substitutions.append(('mpl-compile', MLTON_COMPILE_TOOL))
+
 # Check if the user provided a custom build directory via --param
 user_build_dir = lit_config.params.get('build_dir', None)
 if user_build_dir:

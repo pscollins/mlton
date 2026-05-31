@@ -168,35 +168,58 @@ structure Type =
 
       local
          open Layout
+
+         fun initLayout' (t, layout, isAtLimit) = let
+            fun unary (t, tc) =
+                seq [paren (layout t), str " ", str tc]
+         in
+            case dest t of
+                Array t => unary (t, "array")
+              | CPointer => str "cpointer"
+              | Datatype t => Tycon.layout t
+              | IntInf => str "intInf"
+              | Real s => str (concat ["real", RealSize.toString s])
+              | Ref t => unary (t, "ref")
+              | Thread => str "thread"
+              | Tuple ts =>
+                if Vector.isEmpty ts
+                then str "unit"
+                else seq [str "(",
+                          if isAtLimit
+                             then str "..."
+                             else (mayAlign o separateRight)
+                                      (Vector.toListMap (ts, layout), ","),
+                          str ") tuple"]
+              | Vector t => unary (t, "vector")
+              | Weak t => unary (t, "weak")
+              | Word s => str (concat ["word", WordSize.toString s])
+         end
+
+         fun initLayout (t, layout) = initLayout' (t, layout, false)
+
+         val {get = initLayoutCached, ...} =
+          Property.get
+              (plist, Property.initRec initLayout)
+
+         fun doLayoutWithMaxDepth depth t = let
+            fun doLayout currDepth t =
+               if currDepth = 0
+               then str "..."
+               else initLayout' (t, doLayout (currDepth - 1), currDepth = 1)
+         in
+            doLayout depth t
+         end
       in
-         val {get = layout, ...} =
-            Property.get
-            (plist,
-             Property.initRec
-             (fn (t, layout) =>
-              let
-                 fun unary (t, tc) =
-                    seq [paren (layout t), str " ", str tc]
-              in
-                 case dest t of
-                    Array t => unary (t, "array")
-                  | CPointer => str "cpointer"
-                  | Datatype t => Tycon.layout t
-                  | IntInf => str "intInf"
-                  | Real s => str (concat ["real", RealSize.toString s])
-                  | Ref t => unary (t, "ref")
-                  | Thread => str "thread"
-                  | Tuple ts =>
-                       if Vector.isEmpty ts
-                          then str "unit"
-                       else seq [str "(",
-                                 (mayAlign o separateRight)
-                                 (Vector.toListMap (ts, layout), ","),
-                                 str ") tuple"]
-                  | Vector t => unary (t, "vector")
-                  | Weak t => unary (t, "weak")
-                  | Word s => str (concat ["word", WordSize.toString s])
-              end))
+
+      fun layout t = let
+         val maxDepth = !Control.maxTypePrintDepth
+      in
+         if maxDepth > 0 then
+            (doLayoutWithMaxDepth maxDepth t)
+         else
+            initLayoutCached t
+      end
+
       end
 
       local

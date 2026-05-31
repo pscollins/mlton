@@ -18,4 +18,4 @@ COMPILE_ARGS=("${@: 1: $# - 2}")
 
 OUTFILE=${OUTDIR}/out.bin
 mkdir -p ${OUTDIR}
-${MLTON} -output ${OUTFILE} -keep-pass-out-dir ${OUTDIR} "${COMPILE_ARGS[@]}" "$INFILE"
+${MLTON} -inline 0 -output ${OUTFILE} -keep-pass-out-dir ${OUTDIR} "${COMPILE_ARGS[@]}" "$INFILE"

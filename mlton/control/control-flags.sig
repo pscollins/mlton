@@ -408,6 +408,50 @@ signature CONTROL_FLAGS =
          end
       val shallowFlattenPolicy: ShallowFlattenPolicy.t ref
 
+      val preFlattenMaxIters: int ref
+      val preFlattenRecursiveSteps: int ref
+      val flattenIters: int ref
+
+      structure PreFlattenConsumerPolicy:
+         sig
+            datatype t = Always | AnyUnpack | AllUnpack
+            val toString: t -> string
+            val fromString: string -> t option
+         end
+      val preFlattenConsumerPolicy: PreFlattenConsumerPolicy.t ref
+
+      structure PreFlattenResolvePolicy:
+         sig
+            datatype t = Global | Local
+            val toString: t -> string
+            val fromString: string -> t option
+         end
+      val preFlattenResolvePolicy: PreFlattenResolvePolicy.t ref
+
+      structure PreFlattenTypesPolicy:
+         sig
+            datatype t = Any | Tuple | Con
+            val toString: t -> string
+            val fromString: string -> t option
+         end
+      val preFlattenTypesPolicy: PreFlattenTypesPolicy.t ref
+
+      structure PreFlattenPostStep:
+         sig
+            datatype t = Flatten | Shrink
+            val toString: t -> string
+            val fromString: string -> t option
+         end
+      val preFlattenPostSteps: PreFlattenPostStep.t list ref
+
+      structure PreFlattenLevelStep:
+         sig
+            datatype t = Block | Function
+            val toString: t -> string
+            val fromString: string -> t option
+         end
+      val preFlattenLevelSteps: PreFlattenLevelStep.t list ref
+
       structure PositionIndependentStyle:
          sig
             datatype t =
@@ -477,6 +521,8 @@ signature CONTROL_FLAGS =
 
       (* Should types be printed in ILs. *)
       val showTypes: bool ref
+
+      val maxTypePrintDepth: int ref
 
       structure SignalCheck:
          sig
