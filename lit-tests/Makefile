@@ -1,7 +1,7 @@
 # Paths
 VENV_DIR  := tests/.venv
 VENV_BIN  := $(VENV_DIR)/bin
-LIT       := $(VENV_BIN)/lit -j1
+LIT       := $(VENV_BIN)/lit
 PIP       := $(VENV_BIN)/pip
 
 # Phony targets
