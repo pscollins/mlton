@@ -563,6 +563,8 @@ fun makeOptions {usage} =
                                     in List.push (keepPasses, re)
                                     end
                    | NONE => usage (concat ["invalid -keep-pass flag: ", s])))),
+       (Expert, "keep-pass-out-dir", " <dir>", "directory for -keep-pass outputs",
+        SpaceString (fn s => keepPassOutDir := SOME s)),
        (Expert, "layout-width", " <n>", "target width for pretty printer",
         Int (fn n =>
              if n > 0
@@ -718,6 +720,13 @@ fun makeOptions {usage} =
                                          rounds = rounds,
                                          small = small}
               | _ => ())),
+       (Expert, "shallow-flatten-policy", " maxWidth:<n>", "set shallow flattening policy (maxWidth:3)",
+        SpaceString (fn s =>
+                     case ShallowFlattenPolicy.fromString s of
+                        SOME p => shallowFlattenPolicy := p
+                      | NONE => usage (concat ["invalid -shallow-flatten-policy flag: ", s]))),
+       (Expert, "shallow-flatten-max-iters", " <n>", "limit the number of shallow flattening iterations (1)",
+        Int (fn n => shallowFlattenMaxIters := n)),
        (Expert, "pi-style", " {default|npi|pic|pie}", "position-independent style",
         SpaceString (fn s =>
                      (case (s, PositionIndependentStyle.fromString s) of

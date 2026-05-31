@@ -1,6 +1,7 @@
 (* RUN: mlton-compile \
    RUN:    -keep-pass 'shallowFlatten.*' \
    RUN:    -shallow-flatten-policy maxWidth:2 \
+   RUN:    -shallow-flatten-max-iters 1 \
    RUN:    %s %t
   
    Test that iterative flattening works for `((real * real) array) array`.

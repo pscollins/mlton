@@ -267,6 +267,7 @@ signature CONTROL_FLAGS =
 
       (* List of pass names to save the input/output. *)
       val keepPasses: Regexp.Compiled.t list ref
+      val keepPassOutDir: string option ref
 
       (* Save the AST to a file. *)
       val keepAST: bool ref
@@ -396,6 +397,16 @@ signature CONTROL_FLAGS =
           small: int,
           product: int
          } option ref
+
+      val shallowFlattenMaxIters: int ref
+
+      structure ShallowFlattenPolicy:
+         sig
+            datatype t = MaxWidth of int
+            val toString: t -> string
+            val fromString: string -> t option
+         end
+      val shallowFlattenPolicy: ShallowFlattenPolicy.t ref
 
       structure PositionIndependentStyle:
          sig

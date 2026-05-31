@@ -1,6 +1,8 @@
 (* RUN: mlton-compile \
    RUN:    -keep-pass 'shallowFlatten.*' \
    RUN:    -shallow-flatten-policy maxWidth:2 \
+   RUN:    -shallow-flatten-max-iters 1 \
+   RUN:    -inline 0 \
    RUN:    %s %t
   
    Test that function/block arguments of tuple-array types are flattened.
@@ -9,7 +11,7 @@
    RUN: grep -F  'Array_alloc[real64]'  %t/*shallowFlatten*.post.ssa
  *)
 
-fun __inline_never__ process (arr: (real * real) array) = let
+fun process (arr: (real * real) array) = let
    val (x, y) = Array.sub (arr, 0)
 in
    x + y

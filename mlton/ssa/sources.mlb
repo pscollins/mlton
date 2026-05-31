@@ -40,6 +40,10 @@ local
    restore.fun
 
    ssa-transform.sig
+   flatten-util.sig
+   flatten-util.fun
+   shallow-flatten.sig
+   shallow-flatten.fun
    ssa2-transform.sig
    common-arg.fun
    common-block.fun
@@ -95,5 +99,7 @@ in
 
    functor Ssa
    functor Ssa2
+   functor ShallowFlatten
+   functor FlattenUtil
    functor SsaToSsa2
 end

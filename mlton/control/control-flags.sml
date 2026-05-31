@@ -1071,6 +1071,10 @@ val keepPasses = control {name = "keep passes",
                                      (Layout.toString o
                                       Regexp.Compiled.layout)}
 
+val keepPassOutDir = control {name = "keep pass out dir",
+                              default = NONE,
+                              toString = Option.toString (fn s => s)}
+
 val keepRSSA = control {name = "keep RSSA",
                         default = false,
                         toString = Bool.toString}
@@ -1356,6 +1360,35 @@ val polyvariance =
                              ("small", Int.layout small),
                              ("product", Int.layout product)])
              p)}
+
+val shallowFlattenMaxIters =
+   control {name = "shallow-flatten-max-iters",
+            default = 0,
+            toString = Int.toString}
+
+structure ShallowFlattenPolicy =
+   struct
+      datatype t = MaxWidth of int
+
+      val toString =
+         fn MaxWidth n => concat ["maxWidth:", Int.toString n]
+
+      val fromString =
+         fn s =>
+            if String.hasPrefix (s, {prefix = "maxWidth:"})
+            then
+               let
+                  val nStr = String.extract (s, 9, NONE)
+               in
+                  Option.map (Int.fromString nStr, MaxWidth)
+               end
+            else NONE
+   end
+
+val shallowFlattenPolicy =
+   control {name = "shallow-flatten-policy",
+            default = ShallowFlattenPolicy.MaxWidth 3,
+            toString = ShallowFlattenPolicy.toString}
 
 structure PositionIndependentStyle =
    struct
