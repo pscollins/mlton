@@ -159,6 +159,7 @@ signature MACHINE =
              | PrimApp of {args: Operand.t vector,
                            dst: Operand.t option,
                            prim: Type.t Prim.t}
+             | Diagnostic of string
 
             val foldOperands: t * 'a * (Operand.t * 'a -> 'a) -> 'a
             val layout: t -> Layout.t

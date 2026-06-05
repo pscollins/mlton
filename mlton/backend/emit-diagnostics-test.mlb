@@ -1,0 +1,8 @@
+local
+   ../../lib/mlton/sources.mlb
+   ../control/sources.mlb
+   ../atoms/sources.mlb
+   sources.mlb
+   emit-diagnostics-test.sml
+in
+end

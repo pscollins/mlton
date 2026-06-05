@@ -13,10 +13,24 @@ local
 
    core-ml.sig
    core-ml.fun
+   core-ml-util.sig
+   core-ml-util.fun
+   annotate-trace.sig
+   annotate-trace.fun
+   annotate-trace-value.sig
+   annotate-trace-value.fun
+   inline-trace.sig
+   inline-trace.fun
    dead-code.sig
    dead-code.fun
 in
    signature CORE_ML
+   signature CORE_ML_UTIL
+   signature ANNOTATE_TRACE_VALUE
    functor CoreML
+   functor AnnotateTrace
+   functor AnnotateTraceValue
+   functor InlineTrace
+   functor CoreMLUtil
    functor DeadCode
 end

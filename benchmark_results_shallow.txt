@@ -1,0 +1,80 @@
+=== Run Time (seconds) ===
+Benchmark          MLton0  MLton1  Ratio
+DLXSimulator       23.83   25.51   1.07
+boyer              28.86   28.59   0.99
+count-graphs       23.00   20.89   0.91
+fft                35.36   34.39   0.97
+flat-array         42.82   41.58   0.97
+hamlet             39.47   35.38   0.90
+knuth-bendix       31.35   32.03   1.02
+lexgen             24.84   27.35   1.10
+life               32.16   30.66   0.95
+md5                40.56   40.85   1.01
+mlyacc             34.28   36.27   1.06
+model-elimination  36.63   35.21   0.96
+output1            32.48   30.52   0.94
+ray                36.41   36.78   1.01
+raytrace           25.52   31.95   1.25
+simple             32.03   33.75   1.05
+smith-normal-form  31.73   32.42   1.02
+tensor             52.95   52.81   1.00
+tyan               31.10   30.12   0.97
+vliw               30.19   31.54   1.04
+wc-input1          28.24   24.59   0.87
+wc-scanStream      32.25   32.51   1.01
+zern               41.03   40.46   0.99
+Geomean: 1.000
+
+=== Binary Size (bytes) ===
+Benchmark          MLton0     MLton1     Ratio
+DLXSimulator       206,205    200,341    0.97
+boyer              239,013    241,693    1.01
+count-graphs       122,165    121,717    1.00
+fft                121,090    120,738    1.00
+flat-array         97,853     98,037     1.00
+hamlet             1,400,701  1,423,293  1.02
+knuth-bendix       168,699    166,803    0.99
+lexgen             282,090    279,426    0.99
+life               118,565    124,117    1.05
+md5                144,443    141,739    0.98
+mlyacc             751,498    789,994    1.05
+model-elimination  800,477    866,213    1.08
+output1            133,391    131,351    0.98
+ray                241,742    238,550    0.99
+raytrace           355,390    341,790    0.96
+simple             346,375    379,311    1.10
+smith-normal-form  271,386    269,778    0.99
+tensor             163,113    158,001    0.97
+tyan               216,187    214,491    0.99
+vliw               527,374    545,558    1.03
+wc-input1          161,472    160,280    0.99
+wc-scanStream      170,728    170,552    1.00
+zern               133,032    132,008    0.99
+Geomean: 1.005
+
+=== Compile Time (seconds) ===
+Benchmark          MLton0  MLton1  Ratio
+DLXSimulator       2.91    2.74    0.94
+boyer              2.76    2.57    0.93
+count-graphs       2.32    2.37    1.02
+fft                2.07    2.06    1.00
+flat-array         1.98    1.95    0.98
+hamlet             12.50   12.58   1.01
+knuth-bendix       2.61    3.03    1.16
+lexgen             3.01    3.33    1.11
+life               2.19    2.10    0.96
+md5                2.23    2.25    1.01
+mlyacc             7.91    8.25    1.04
+model-elimination  6.82    7.01    1.03
+output1            2.36    2.14    0.91
+ray                2.95    3.38    1.15
+raytrace           3.88    3.58    0.92
+simple             3.11    3.64    1.17
+smith-normal-form  2.56    2.59    1.01
+tensor             2.51    2.50    1.00
+tyan               2.80    3.03    1.08
+vliw               4.98    5.20    1.04
+wc-input1          2.40    2.57    1.07
+wc-scanStream      2.48    2.44    0.98
+zern               2.17    2.43    1.12
+Geomean: 1.025

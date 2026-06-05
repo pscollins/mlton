@@ -15,6 +15,7 @@ signature RUNTIME
 
 functor Backend
 functor BackendAtoms
+functor EmitDiagnostics
 functor Machine
 functor Rssa
 functor Ssa2ToRssa
@@ -73,6 +74,9 @@ ssa2-to-rssa.fun
 
 machine.sig
 machine.fun
+
+emit-diagnostics.sig
+emit-diagnostics.fun
 
 allocate-variables.sig
 allocate-variables.fun

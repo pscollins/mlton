@@ -756,6 +756,36 @@ fun checkPrimApp {args, prim, result} =
        | Prim.Real_round s => realUnary s
        | Prim.Real_sub s => realBinary s
        | Prim.Thread_returnToC => done ([], NONE)
+        | Prim.Trace_sourceMark => done ([objptr], NONE)
+        | Prim.Trace_noHeap => let
+           val ty = Vector.first args
+           fun isTy t = equals (t, ty)
+        in
+           done ([isTy], SOME isTy) orelse done ([isTy], NONE)
+        end
+        | Prim.Trace_heapOK => let
+           val ty = Vector.first args
+           fun isTy t = equals (t, ty)
+        in
+           done ([isTy], SOME isTy) orelse done ([isTy], NONE)
+        end
+        | Prim.Trace_noTuple => let
+           val ty = Vector.first args
+           fun isTy t = equals (t, ty)
+        in
+           done ([isTy], SOME isTy) orelse done ([isTy], NONE)
+        end
+
+        | Prim.Trace_sourceMarkValue =>
+          Error.bug "sourceMarkValue should have been eliminated in core-ml"
+        | Prim.Trace_staticSourceMark _ => done ([], NONE)
+        | Prim.Trace_staticSourceMarkValue _ => let
+           val ty = Vector.first args
+           fun isTy t = equals (t, ty)
+        in
+           (* Assert that the input type matches the type argument *)
+           done ([isTy], NONE)
+        end
        | Prim.Word_add s => wordBinary s
        | Prim.Word_addCheckP (s, _) => wordBinaryP s
        | Prim.Word_andb s => wordBinary s

@@ -48,6 +48,7 @@ signature MLTON =
       structure Syslog: MLTON_SYSLOG
       structure TextIO: MLTON_TEXT_IO
       structure Thread: MLTON_THREAD
+      structure Trace : MLTON_TRACE
       structure Vector: MLTON_VECTOR
       structure Weak: MLTON_WEAK
       structure Word: MLTON_WORD

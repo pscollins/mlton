@@ -582,7 +582,13 @@ struct
                                     dsts = dsts,
                                     transInfo = transInfo}),
                     comment_end]
-                 end)
+                 end
+              | Diagnostic s
+              => AppendList.single
+                 (x86.Block.mkBlock'
+                  {entry = NONE,
+                   statements = [x86.Assembly.comment (concat ["Diagnostic: ", s])],
+                   transfer = NONE}))
     end
 
   structure Transfer =

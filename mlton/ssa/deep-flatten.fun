@@ -728,6 +728,8 @@ fun transform2 (program as Program.T {datatypes, functions, globals, main}) =
                   let val a = arg 0
                   in (Value.dontFlatten a; weak a)
                   end
+             | Prim.Trace_sourceMarkValue => dontFlatten ()
+             | Prim.Trace_staticSourceMarkValue _ => dontFlatten ()
              | _ => result ()
          end
       fun base b =

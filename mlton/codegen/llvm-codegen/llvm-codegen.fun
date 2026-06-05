@@ -1345,6 +1345,7 @@ fun output {program as Machine.Program.T {chunks, frameInfos, main, ...},
                         in
                            ()
                         end
+                     | Statement.Diagnostic _ => ()
                end
             local
                fun mk (dst, src) () =

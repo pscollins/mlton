@@ -1,0 +1,9 @@
+local
+   $(SML_LIB)/basis/basis.mlb
+   ../../lib/mlton/sources.mlb
+   ../atoms/sources.mlb
+   ../elaborate/sources.mlb
+   sources.mlb
+in
+   inline-trace-test.sml
+end

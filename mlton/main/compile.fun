@@ -58,6 +58,9 @@ structure FrontEnd = FrontEnd (structure Ast = Ast)
 structure MLBFrontEnd = MLBFrontEnd (structure Ast = Ast
                                      structure FrontEnd = FrontEnd)
 structure DeadCode = DeadCode (structure CoreML = CoreML)
+structure InlineTrace = InlineTrace (structure CoreML = CoreML)
+structure AnnotateTrace = AnnotateTrace (structure CoreML = CoreML)
+structure AnnotateTraceValue = AnnotateTraceValue (structure CoreML = CoreML)
 structure Defunctorize = Defunctorize (structure CoreML = CoreML
                                        structure Xml = Xml)
 structure Elaborate = Elaborate (structure Ast = Ast
@@ -86,6 +89,7 @@ structure x86Codegen = x86Codegen (structure CCodegen = CCodegen
                                    structure Machine = Machine)
 structure amd64Codegen = amd64Codegen (structure CCodegen = CCodegen
                                        structure Machine = Machine)
+structure EmitDiagnostics = EmitDiagnostics (structure Machine = Machine)
 
 (* ------------------------------------------------- *)   
 (*                   Primitive Env                   *)
@@ -361,6 +365,69 @@ fun mkCompile {outputC, outputLL, outputS} =
          in
             coreML
          end
+      fun inlineTrace coreML =
+         let
+            fun doit (CoreML.Program.T {decs}) =
+               let
+                  val decs = Vector.map (decs, fn d => [d])
+                  val {prog = decs} = InlineTrace.inlineTrace {prog = decs}
+                  val decs = Vector.concatV (Vector.map (decs, Vector.fromList))
+               in
+                  CoreML.Program.T {decs = decs}
+               end
+         in
+            Control.translatePass
+            {arg = coreML,
+             doit = doit,
+             keepIL = false,
+             name = "inlineTrace",
+             srcToFile = SOME CoreML.Program.toFile,
+             tgtStats = SOME CoreML.Program.layoutStats,
+             tgtToFile = SOME CoreML.Program.toFile,
+             tgtTypeCheck = NONE}
+         end
+      fun annotateTrace coreML =
+         let
+            fun doit (CoreML.Program.T {decs}) =
+               let
+                  val decs = Vector.map (decs, fn d => [d])
+                  val {prog = decs} = AnnotateTrace.annotateTrace {prog = decs}
+                  val decs = Vector.concatV (Vector.map (decs, Vector.fromList))
+               in
+                  CoreML.Program.T {decs = decs}
+               end
+         in
+            Control.translatePass
+            {arg = coreML,
+             doit = doit,
+             keepIL = false,
+             name = "annotateTrace",
+             srcToFile = SOME CoreML.Program.toFile,
+             tgtStats = SOME CoreML.Program.layoutStats,
+             tgtToFile = SOME CoreML.Program.toFile,
+             tgtTypeCheck = NONE}
+         end
+      fun annotateTraceValue coreML =
+         let
+            fun doit (CoreML.Program.T {decs}) =
+               let
+                  val decs = Vector.map (decs, fn d => [d])
+                  val {prog = decs} = AnnotateTraceValue.annotateTraceValue {prog = decs}
+                  val decs = Vector.concatV (Vector.map (decs, Vector.fromList))
+               in
+                  CoreML.Program.T {decs = decs}
+               end
+         in
+            Control.translatePass
+            {arg = coreML,
+             doit = doit,
+             keepIL = false,
+             name = "annotateTraceValue",
+             srcToFile = SOME CoreML.Program.toFile,
+             tgtStats = SOME CoreML.Program.layoutStats,
+             tgtToFile = SOME CoreML.Program.toFile,
+             tgtTypeCheck = NONE}
+         end
       fun defunctorize coreML =
          Control.translatePass
          {arg = coreML,
@@ -376,7 +443,7 @@ fun mkCompile {outputC, outputLL, outputS} =
       fun frontend input =
          Control.translatePass
          {arg = input,
-          doit = defunctorize o deadCode o parseAndElaborateMLB,
+          doit = defunctorize o annotateTraceValue o annotateTrace o inlineTrace o deadCode o parseAndElaborateMLB,
           keepIL = false,
           name = "frontend",
           srcToFile = NONE,
@@ -633,8 +700,19 @@ fun mkCompile {outputC, outputLL, outputS} =
              tgtTypeCheck = NONE}
          end
 
+      fun emitDiagnostics machine =
+         Control.translatePass
+         {arg = machine,
+          doit = EmitDiagnostics.emitDiagnostics,
+          keepIL = false,
+          name = "emitDiagnostics",
+          srcToFile = SOME Machine.Program.toFile,
+          tgtStats = SOME Machine.Program.layoutStats,
+          tgtToFile = SOME Machine.Program.toFile,
+          tgtTypeCheck = SOME (Machine.Program.typeCheck, SOME false)}
+
       val goCodegen = codegen
-      val goMachineSimplify = goCodegen o machineSimplify
+      val goMachineSimplify = goCodegen o emitDiagnostics o machineSimplify
       val goToMachine = goMachineSimplify o toMachine
       val goRssaSimplify = goToMachine o rssaSimplify
       val goToRssa = goRssaSimplify o toRssa

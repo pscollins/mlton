@@ -276,6 +276,15 @@ structure Thread =
       val switchTo = _prim "Thread_switchTo": thread -> unit;
    end
 
+structure Trace = struct
+  val sourceMark = _prim "Trace_sourceMark": String8.string -> unit;
+  val sourceMarkValue = _prim "Trace_sourceMarkValue": 'a * String8.string -> unit;
+  val noHeap = _prim "Trace_noHeap": 'a -> 'a;
+  val heapOK = _prim "Trace_heapOK": 'a -> 'a;
+
+  val noTuple = _prim "Trace_noTuple": 'a -> 'a;
+end
+
 structure Weak =
    struct
       open Weak

@@ -61,6 +61,9 @@ local
    machine.sig
    machine.fun
 
+   emit-diagnostics.sig
+   emit-diagnostics.fun
+
    allocate-variables.sig
    allocate-variables.fun
    equivalence-graph.sig
@@ -78,6 +81,7 @@ in
 
    functor Backend
    functor BackendAtoms
+   functor EmitDiagnostics
    functor Machine
    functor Rssa
    functor Ssa2ToRssa

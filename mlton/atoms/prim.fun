@@ -154,6 +154,13 @@ datatype 'a t =
   * on the stack.
   *)
  | Thread_switchTo (* to rssa (as runtime C fn) *)
+ | Trace_sourceMark  (* codegen *)
+ | Trace_staticSourceMark of string  (* machine *)
+ | Trace_sourceMarkValue  (* core-ml *)
+ | Trace_staticSourceMarkValue of string  (* to machine *)
+ | Trace_noHeap  (* ssa *)
+ | Trace_heapOK  (* ssa *)
+ | Trace_noTuple (* ssa *)
  | TopLevel_getHandler (* implement exceptions *)
  | TopLevel_getSuffix (* implement suffix *)
  | TopLevel_setHandler (* implement exceptions *)
@@ -322,6 +329,13 @@ fun toString (n: 'a t): string =
        | Thread_copyCurrent => "Thread_copyCurrent"
        | Thread_returnToC => "Thread_returnToC"
        | Thread_switchTo => "Thread_switchTo"
+       | Trace_sourceMark => "Trace_sourceMark"
+       | Trace_staticSourceMark s => "Trace_staticSourceMark:" ^ s
+       | Trace_sourceMarkValue => "Trace_sourceMarkValue"
+       | Trace_staticSourceMarkValue s => "Trace_staticSourceMarkValue:" ^ s
+       | Trace_noHeap => "Trace_noHeap"
+       | Trace_heapOK => "Trace_heapOK"
+       | Trace_noTuple => "Trace_noTuple"
        | TopLevel_getHandler => "TopLevel_getHandler"
        | TopLevel_getSuffix => "TopLevel_getSuffix"
        | TopLevel_setHandler => "TopLevel_setHandler"
@@ -482,6 +496,13 @@ val equals: 'a t * 'a t -> bool =
     | (Thread_copyCurrent, Thread_copyCurrent) => true
     | (Thread_returnToC, Thread_returnToC) => true
     | (Thread_switchTo, Thread_switchTo) => true
+    | (Trace_sourceMark, Trace_sourceMark) => true
+    | (Trace_staticSourceMark s, Trace_staticSourceMark s') => s = s'
+    | (Trace_sourceMarkValue, Trace_sourceMarkValue) => true
+    | (Trace_staticSourceMarkValue s, Trace_staticSourceMarkValue s') => s = s'
+    | (Trace_noHeap, Trace_noHeap) => true
+    | (Trace_heapOK, Trace_heapOK) => true
+    | (Trace_noTuple, Trace_noTuple) => true
     | (TopLevel_getHandler, TopLevel_getHandler) => true
     | (TopLevel_getSuffix, TopLevel_getSuffix) => true
     | (TopLevel_setHandler, TopLevel_setHandler) => true
@@ -654,6 +675,13 @@ val map: 'a t * ('a -> 'b) -> 'b t =
     | Thread_copyCurrent => Thread_copyCurrent
     | Thread_returnToC => Thread_returnToC
     | Thread_switchTo => Thread_switchTo
+    | Trace_sourceMark => Trace_sourceMark
+    | Trace_staticSourceMark s => Trace_staticSourceMark s
+    | Trace_sourceMarkValue => Trace_sourceMarkValue
+    | Trace_staticSourceMarkValue s => Trace_staticSourceMarkValue s
+    | Trace_noHeap => Trace_noHeap
+    | Trace_heapOK => Trace_heapOK
+    | Trace_noTuple => Trace_noTuple
     | TopLevel_getHandler => TopLevel_getHandler
     | TopLevel_getSuffix => TopLevel_getSuffix
     | TopLevel_setHandler => TopLevel_setHandler
@@ -859,6 +887,13 @@ val kind: 'a t -> Kind.t =
        | Thread_copyCurrent => SideEffect
        | Thread_returnToC => SideEffect
        | Thread_switchTo => SideEffect
+       | Trace_sourceMark => SideEffect
+       | Trace_staticSourceMark _ => SideEffect
+       | Trace_sourceMarkValue => SideEffect
+       | Trace_staticSourceMarkValue _ => SideEffect
+       | Trace_noHeap => SideEffect
+       | Trace_heapOK => SideEffect
+       | Trace_noTuple => SideEffect
        | TopLevel_getHandler => DependsOnState
        | TopLevel_getSuffix => DependsOnState
        | TopLevel_setHandler => SideEffect
@@ -1034,6 +1069,13 @@ in
        Thread_copyCurrent,
        Thread_returnToC,
        Thread_switchTo,
+       Trace_sourceMark,
+       Trace_sourceMarkValue,
+       Trace_noHeap,
+       Trace_heapOK,
+       Trace_noTuple,
+       (* Trace_staticSourceMark{,Value} can't be written "manually" by a user, and so
+       doesn't appear here *)
        TopLevel_getHandler,
        TopLevel_getSuffix,
        TopLevel_setHandler,
@@ -1375,6 +1417,13 @@ fun 'a checkApp (prim: 'a t,
        | Thread_copyCurrent => noTargs (fn () => (noArgs, unit))
        | Thread_returnToC => noTargs (fn () => (noArgs, unit))
        | Thread_switchTo => noTargs (fn () => (oneArg thread, unit))
+       | Trace_sourceMark => noTargs (fn () => (oneArg string, unit))
+       | Trace_staticSourceMark s => noTargs (fn () => (noArgs, unit))
+       | Trace_sourceMarkValue => oneTarg (fn (t) => (twoArgs (t, string), unit))
+       | Trace_noHeap => oneTarg (fn (t) => (oneArg t, t))
+       | Trace_heapOK => oneTarg (fn (t) => (oneArg t, t))
+       | Trace_noTuple => oneTarg (fn (t) => (oneArg t, t))
+       | Trace_staticSourceMarkValue s => oneTarg (fn (t) => (oneArg t, unit))
        | TopLevel_getHandler => noTargs (fn () => (noArgs, arrow (exn, unit)))
        | TopLevel_getSuffix => noTargs (fn () => (noArgs, arrow (unit, unit)))
        | TopLevel_setHandler =>
@@ -1474,6 +1523,11 @@ fun ('a, 'b) extractTargs (prim: 'b t,
        | Ref_assign => one (deRef (arg 0))
        | Ref_deref => one (deRef (arg 0))
        | Ref_ref => one (deRef result)
+       | Trace_sourceMarkValue => one (arg 0)
+       | Trace_noHeap => one result
+       | Trace_heapOK => one result
+       | Trace_noTuple => one result
+       | Trace_staticSourceMarkValue _ => one (arg 0)
        | Vector_length => one (deVector (arg 0))
        | Vector_sub => one (deVector (arg 0))
        | Vector_vector => one (deVector result)

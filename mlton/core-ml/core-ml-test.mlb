@@ -1,0 +1,10 @@
+local
+   $(SML_LIB)/basis/basis.mlb
+   ../../lib/mlton/sources.mlb
+   ../control/sources.mlb
+   ../atoms/sources.mlb
+   ../elaborate/sources.mlb
+   sources.mlb
+in
+   core-ml-test.sml
+end

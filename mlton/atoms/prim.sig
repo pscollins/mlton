@@ -144,6 +144,13 @@ signature PRIM =
         * on the stack.
         *)
        | Thread_switchTo (* to rssa (as runtime C fn) *)
+       | Trace_sourceMark  (* codegen *)
+       | Trace_staticSourceMark of string  (* to machine *)
+       | Trace_sourceMarkValue  (* core-ml *)
+       | Trace_staticSourceMarkValue of string  (* to machine *)
+       | Trace_noHeap  (* ssa *)
+       | Trace_heapOK  (* ssa *)
+       | Trace_noTuple (* ssa *)
        | TopLevel_getHandler (* implement exceptions *)
        | TopLevel_getSuffix (* implement suffix *)
        | TopLevel_setHandler (* implement exceptions *)

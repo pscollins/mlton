@@ -184,6 +184,16 @@ fun implementsPrim (p: 'a Prim.t): bool =
        | Real_rndToWord _ => true
        | Real_round _ => true
        | Real_sub _ => true
+       | Trace_sourceMark =>  true
+       | Trace_staticSourceMark _ =>  true
+       (* Trace_sourceMarkValue isn't included because we don't support a
+       fallback "dynamic" path for it *)
+       | Trace_staticSourceMarkValue _ =>  true
+       (* noHeap is eliminated in RSSA, but we still need to mark it as
+       supported here *)
+       | Trace_noHeap =>  true
+       | Trace_heapOK =>  true
+       | Trace_noTuple => true
        | Thread_returnToC => false
        | Word_add _ => true
        | Word_addCheckP _ => true
@@ -1106,6 +1116,9 @@ fun output {program as Machine.Program.T {chunks, frameInfos, main, ...},
                                               srcIsMem = false,
                                               ty = Operand.ty dst})
                         end
+                   | Diagnostic _ => (prints ["\t// ",
+                                              Layout.toString (Statement.layout s),
+                                              "\n"])
                end
             local
                fun mk (dst, src) () =
