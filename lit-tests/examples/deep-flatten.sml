@@ -4,9 +4,9 @@
  *   mlton -keep-pass 'deepFlatten.*' deep-flatten.sml
  *
  * Under the hood:
- * - Pre-deepFlatten (*.pre.ssa): The array 'arr' is allocated as an array of tuples:
+ * - Pre-deepFlatten (....pre.ssa): The array 'arr' is allocated as an array of tuples:
  *     Array_alloc[(int, int) tuple]
- * - Post-deepFlatten (*.post.ssa): The tuple is flattened, transforming the array 
+ * - Post-deepFlatten (....post.ssa): The tuple is flattened, transforming the array 
  *   into a sequence of two inline int fields. The tuple structure is completely 
  *   compiled away.
  *)
