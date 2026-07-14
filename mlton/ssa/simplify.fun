@@ -99,8 +99,8 @@ val ssaPassesDefault =
    {name = "loopInvariant3", doit = LoopInvariant.transform, execute = true} ::
    {name = "localRef", doit = LocalRef.transform, execute = true} ::
    {name = "shallowFlatten", doit = ShallowFlatten.transform, execute = true} ::
-   {name = "preFlatten", doit = PreFlatten.transform, execute = true} ::
    {name = "flatten", doit = Flatten.transform, execute = true} ::
+   {name = "preFlatten", doit = PreFlatten.transform, execute = true} ::
    {name = "localFlatten3", doit = LocalFlatten.transform, execute = true} ::
    {name = "combineConversions", doit = CombineConversions.transform, execute = true} ::
    {name = "commonArg", doit = CommonArg.transform, execute = true} ::
