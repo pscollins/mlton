@@ -32,14 +32,22 @@ BFLAGS := -mlton "/usr/bin/mlton" -mlton "mlton -optimize-ssa {false,true}"
 BFLAGS := -wiki -mlton "/usr/bin/mlton"
 BFLAGS := -mlton "$(BIN)/mlton"
 
+.PHONY: unittest
+unittest: util/test-util-tests
+	./util/test-util-tests
+
+util/test-util-tests: util/test-util-tests.mlb $(shell $(MLBDEPS) util/test-util-tests.mlb)
+	@echo 'Compiling test-util-tests'
+	"$(RUN_MLTON)" @MLton $(RUN_MLTON_RUNTIME_ARGS) -- $(RUN_MLTON_COMPILE_ARGS) $(RUN_MLTON_COMPILE_XARGS) -target $(TARGET) -output util/test-util-tests util/test-util-tests.mlb
+
 .PHONY: test
-test: $(NAME)
-	cd ../tests && ../benchmark-util/benchmark $(BFLAGS) $(BENCH)
+test: $(NAME) unittest
+	cd ../tests && ../benchmark-new/$(NAME) $(BFLAGS) $(BENCH)
 
 QBENCH := $(BENCH)
 QBFLAGS := -mlton "~/devel/mlton/builds/20171013.233239-g5513092e3/bin/mlton"
 QBFLAGS += -mlton "~/devel/mlton/mlton.git/build/bin/mlton -cse-canon {ascHash,descHash,ascIndex,descIndex}"
 
 .PHONY: qtest
-qtest: $(NAME)
-	cd ../tests && ../benchmark-util/benchmark $(QBFLAGS) $(QBENCH) && $(MAKE) clean
+qtest: $(NAME) unittest
+	cd ../tests && ../benchmark-new/$(NAME) $(QBFLAGS) $(QBENCH) && $(MAKE) clean
