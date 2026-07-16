@@ -1175,6 +1175,17 @@ fun updateChoiceForAllowedTypes policy vc =
      | (FlattenOnlyConApp, FlattenTupleVar _) => PreserveVar
      | _ => vc
 
+datatype transferFlatteningPolicy =
+         FlattenAnyTransfer
+       | FlattenOnlyTailCalls
+
+fun updateChoiceForTransferPolicy (policy, transfer) vc =
+    case (policy, transfer) of
+        (FlattenAnyTransfer, _) => vc
+      | (FlattenOnlyTailCalls, Transfer.Call {args, func,
+                                              return=Return.Tail}) => vc
+      | (FlattenOnlyTailCalls, _) => PreserveVar
+
 
 fun varChoiceToArgChoice (vc: varChoice): argChoice = let
    fun extractTy (_, t) = t
@@ -1224,7 +1235,8 @@ fun recursiveFlattenPolicyToLayout p =
 
 fun flattenOnce (flattenPolicy, resolvePolicy,
                  allowedTypesPolicy, flattenLevel,
-                 recursiveFlattenPolicy) (p: Program.t) = let
+                 recursiveFlattenPolicy,
+                 transferPolicy) (p: Program.t) = let
    (* TODO: support recursiveFlattenPolicy *)
    val vm = newVarChoicesForProgram p
    val vc = newVarConsumersForProgram p
@@ -1263,15 +1275,17 @@ fun flattenOnce (flattenPolicy, resolvePolicy,
    end
 
    fun rewriteTransfer (t: Transfer.t) = let
+      val updateChoice' = updateChoiceForTransferPolicy (transferPolicy, t)
       fun buildTransferArgs args = let
          (* Make a flattening decision for each argument by collecting all of
          the tags for each concrete argument... *)
          val varChoices = Vector.map (args, getChoice)
          (* ...and the (resolved) usage info for each formal parameter... *)
          val varConsumers = Vector.map (args, getConsumers)
-         (* ...and applying the policy *)
-         val varChoices' = Vector.map2 (varChoices, varConsumers,
-                                        updateChoice)
+         (* ...and applying the policies *)
+         val varChoices' = Vector.map (Vector.map2 (varChoices, varConsumers,
+                                                    updateChoice),
+                                       updateChoice')
          val _ = Control.diagnostic
                      (buildLogThunk (t, varChoices, varConsumers,
                                      varChoices'))
@@ -1497,9 +1511,15 @@ fun transform (p: Program.t): Program.t =
           if !Control.preFlattenRecursiveSteps = 0
              then noRecursiveFlatten
           else recursiveFlattenSteps (!Control.preFlattenRecursiveSteps)
+       val transferFlatten =
+           case !Control.preFlattenTransferPolicy of
+               Control.PreFlattenTransferPolicy.Always =>
+               FlattenAnyTransfer
+            |  Control.PreFlattenTransferPolicy.TailOnly =>
+               FlattenOnlyTailCalls
        fun applyLevels (p) = let          fun apply (step, p') =
            flattenOnce (policy, resolvePolicy, typesPolicy, step,
-                        recursiveFlatten) p'
+                        recursiveFlatten, transferFlatten) p'
        in
           foldTransformation (levelSteps, apply, p)
        end

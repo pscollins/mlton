@@ -452,6 +452,22 @@ signature CONTROL_FLAGS =
          end
       val preFlattenLevelSteps: PreFlattenLevelStep.t list ref
 
+      structure PreFlattenPhase:
+         sig
+            datatype t = Early | Late
+            val toString: t -> string
+            val fromString: string -> t option
+         end
+      val preFlattenPhase: PreFlattenPhase.t ref
+
+      structure PreFlattenTransferPolicy:
+         sig
+            datatype t = Always | TailOnly
+            val toString: t -> string
+            val fromString: string -> t option
+         end
+      val preFlattenTransferPolicy: PreFlattenTransferPolicy.t ref
+
       structure PositionIndependentStyle:
          sig
             datatype t =

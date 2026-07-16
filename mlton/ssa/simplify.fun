@@ -285,7 +285,31 @@ val _ = Control.OptimizationPasses.register
 
 fun simplify p =
    let
-      val ssaPasses = AppendList.fromList (!ssaPasses)
+      val ssaPasses =
+         case !Control.preFlattenPhase of
+            Control.PreFlattenPhase.Early => !ssaPasses
+          | Control.PreFlattenPhase.Late =>
+               let
+                  fun loop (passes, acc, preFlattenPass) =
+                     case passes of
+                        [] =>
+                           (case preFlattenPass of
+                               NONE => List.rev acc
+                             | SOME pf => List.rev (pf :: acc))
+                      | (p as {name, ...}) :: ps =>
+                           if String.hasPrefix (name, {prefix = "preFlatten"})
+                              then loop (ps, acc, SOME p)
+                           else if String.hasPrefix (name, {prefix = "flatten"})
+                              then
+                                 (case preFlattenPass of
+                                     NONE => loop (ps, p :: acc, NONE)
+                                   | SOME pf => loop (ps, pf :: p :: acc, NONE))
+                           else
+                              loop (ps, p :: acc, preFlattenPass)
+               in
+                  loop (!ssaPasses, [], NONE)
+               end
+      val ssaPasses = AppendList.fromList ssaPasses
       val ssaPasses =
          if !Control.profile <> Control.ProfileNone
             andalso !Control.profileIL = Control.ProfileSSA

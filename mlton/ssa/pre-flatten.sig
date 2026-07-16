@@ -31,6 +31,13 @@ sig
        -pre-flatten-recursive-steps=$N
           sets the `recursiveFlattenPolicy` (below): 0 means
           `noRecursiveFlatten`
+
+       -pre-flatten-phase={early|late}
+          picks if this pass should run right before `flatten` (`early`) or
+          right after `flatten` (`late`)
+
+       -pre-flatten-transfer-policy={always|tail_only}
+          picks the `transferFlatteningPolicy` for this pass
     *)
    include SSA_TRANSFORM
 
@@ -365,6 +372,18 @@ sig
                               (varChoice * (varConsumer list)) ->
                               varChoice
 
+   (* Controls which types of calls can be flattened  *)
+   datatype transferFlatteningPolicy =
+            (* Allow any `Transfer.t` *)
+            FlattenAnyTransfer
+            (* Allow only `Call` with a `Tail` return  *)
+            | FlattenOnlyTailCalls
+
+   (* Updates the provided `varChoice` by evaluating the provided `Transfer.t`
+   under the provided policy *)
+   val updateChoiceForTransferPolicy : transferFlatteningPolicy * Transfer.t ->
+                                       varChoice -> varChoice
+
    (* Chooses which datatypes can be flattened through *)
    datatype flattenableTypesPolicy =
             (* Allows flattening any type (tuple or ConApp) *)
@@ -479,7 +498,7 @@ sig
     *)
    val flattenOnce: (flatteningPolicy * varAliasPolicy *
                      flattenableTypesPolicy * flattenLevel *
-                     recursiveFlattenPolicy)
+                     recursiveFlattenPolicy * transferFlatteningPolicy)
                     -> Program.t -> Program.t option
 
 end
