@@ -23,57 +23,6 @@ val runArgs : string list ref = ref []
    
 
 
-fun ignoreOutput f =
-   let
-      val nullFd =
-         let
-            open Pervasive.Posix.FileSys
-         in
-            openf ("/dev/null", O_WRONLY, O.flags [])
-         end
-      open FileDesc
-   in
-      Exn.finally
-      (fn () => fluidLet (stderr, nullFd, fn () =>
-                          fluidLet (stdout, nullFd, f)),
-       fn () => close nullFd)
-   end
-
-datatype command =
-   Explicit of {args: string list,
-                com: string}
-  | Shell of string list
-
-fun timeIt ca =
-   Process.time
-   (fn () =>
-    case ca of
-       Explicit {args, com} =>
-          Process.waitChildPid (Process.spawnp {file = com, args = com :: args})
-     | Shell ss => List.foreach (ss, Process.system))
-   
-local
-   val trialTime = Time.seconds (IntInf.fromInt 60)
-in
-   fun timeCall (com, args): real =
-      let 
-         fun doit ac =
-            let
-               val {user, system} = timeIt (Explicit {args = args, com = com})
-               val op + = Time.+
-            in ac + user + system
-            end
-         fun loop (n, ac: Time.t): real =
-            if Time.> (ac, trialTime)
-               then Time.toReal ac / Real.fromInt n
-            else loop (n + 1, doit ac)
-      in 
-         if !doOnce
-            then Time.toReal (doit Time.zero)
-         else loop (0, Time.zero)
-      end
-end
-
 val benchCounts: (string * int) list =
    ("barnes-hut", 32768):: (* 41.85 sec *)
    ("boyer", 12288):: (* 36.04 sec *)
@@ -134,81 +83,6 @@ val benchCount =
 val default_main = (fn bench => concat ["val _ = Main.doit ", benchCount bench, "\n"])
 
 local
-(*
- * text    data     bss     dec     hex filename
- * 3272995       818052   24120 4115167  3ecadf mlton
- *)
-fun size (f: File.t): {text: int, data: int, bss: int}  =
-   let
-      val fail = fn () => Process.fail (concat ["size failed on ", f])
-   in
-      File.withTemp
-      (fn sizeRes =>
-       let
-          val _ = Process.system (concat ["size ", f, ">", sizeRes])
-       in
-          File.withIn
-          (sizeRes, fn ins =>
-           case In.lines ins of
-              [_, nums] =>
-                 (case String.tokens (nums, Char.isSpace) of
-                     text :: data :: bss :: _ =>
-                        (case (Int.fromString text,
-                               Int.fromString data,
-                               Int.fromString bss) of
-                            (SOME text, SOME data, SOME bss) =>
-                               {text = text, data = data, bss = bss}
-                          | _ => fail ())
-                    | _ => fail ())
-             | _ => fail ())
-       end)
-   end
-in
-fun compileSizeRun {command, exe, doTextPlusData: bool} =
-   Escape.new
-   (fn e =>
-    let
-       val exe = "./" ^ exe
-       val {system, user} = timeIt command
-          handle _ => Escape.escape (e, {compile = NONE,
-                                         run = NONE,
-                                         size = NONE})
-       val compile = SOME (Time.toReal (Time.+ (system, user)))
-       val size =
-          if doTextPlusData
-             then
-                let 
-                   val {text, data, ...} = size exe
-                in SOME (Position.fromInt (text + data))
-                end
-          else SOME (File.size exe)
-       val run =
-          timeCall (exe, !runArgs)
-          handle _ => Escape.escape (e, {compile = compile,
-                                         run = NONE,
-                                         size = size})
-    in {compile = compile,
-        run = SOME run,
-        size = size}
-    end)
-end
-
-fun batch_ {abbrv, bench} =
-   let
-      val abbrv =
-         String.translate
-         (abbrv, fn c =>
-          if Char.isAlphaNum c
-             then String.fromChar c
-          else "_")
-   in
-      concat [bench, ".", abbrv, ".batch"]
-   end
-
-fun batch ab =
-  concat [batch_ ab, ".sml"]
-
-local
    val next = Counter.generator 0
 in
    fun makeMLton commandPattern =
@@ -224,18 +98,13 @@ in
                  abbrv = abbrv,
                  main = default_main,
                  test = (fn {bench} =>
-                         let
-                            val src = batch {abbrv = abbrv, bench = bench}
-                            val exe = String.dropSuffix (src, 4)
-                            val cmds = (concat [cmd, " -output ", exe, " ", src])::
-                                       (*(concat ["strip ", exe])::*)
-                                       nil
-                         in
-                            compileSizeRun
-                            {command = Shell cmds,
-                             exe = exe,
-                             doTextPlusData = true}
-                         end)}
+                          BenchmarkLib.runTest
+                          {bench = bench,
+                           config = {cmd = cmd,
+                                     abbrv = abbrv,
+                                     main = default_main},
+                           runArgs = !runArgs,
+                           doOnce = !doOnce})}
              end)
 end
 
@@ -483,7 +352,7 @@ fun main (_, args) =
                       val foundOne = ref false
                       val res =
                          List.fold
-                         (compilers, ac, fn ({name, abbrv, main, test},
+                         (compilers, ac, fn ({name, abbrv, test, ...},
                                              ac as {compiles: real data,
                                                     runs: real data,
                                                     sizes: Position.int data,
@@ -492,57 +361,12 @@ fun main (_, args) =
                           if true
                              then
                                 let
-                                   val _ =
-                                      File.withOut
-                                      (batch {abbrv = abbrv, bench = bench}, fn out =>
-                                       (File.outputContents (concat [bench, ".sml"], out);
-                                        Out.output (out, (main bench))))
-(*
-                                   val outTmpFile =
-                                      File.tempName {prefix = "tmp", suffix = "out"}
-                                   val errTmpFile =
-                                      File.tempName {prefix = "tmp", suffix = "err"}
-*)
-                                   val {compile, run, size} =
-                                     ignoreOutput
-                                     (fn () => test {bench = bench})
+                                   val {compile, run, size} = test {bench = bench}
                                    val _ =
                                       if name = base
                                          andalso Option.isNone run
                                          then List.push (failures, bench)
                                       else ()
-(*
-                                   val out = 
-                                      case !outData of 
-                                         NONE => NONE
-                                       | SOME (_, doit) => 
-                                             File.foldLines
-                                             (outTmpFile, NONE, fn (s, v) =>
-                                              let val s = String.removeTrailing
-                                                          (s, fn c => 
-                                                           Char.equals (c, Char.newline))
-                                              in
-                                                 case doit s of
-                                                    NONE => v
-                                                  | v => v
-                                              end)
-                                   val err = 
-                                      case !errData of 
-                                         NONE => NONE
-                                       | SOME (_, doit) =>
-                                             File.foldLines
-                                             (errTmpFile, NONE, fn (s, v) =>
-                                              let val s = String.removeTrailing
-                                                          (s, fn c => 
-                                                           Char.equals (c, Char.newline))
-                                              in
-                                                 case doit s of
-                                                    NONE => v
-                                                  | v => v
-                                              end)
-                                   val _ = File.remove outTmpFile
-                                   val _ = File.remove errTmpFile
-*)
                                    val out = NONE
                                    val err = NONE
                                    fun add (v, ac) =
