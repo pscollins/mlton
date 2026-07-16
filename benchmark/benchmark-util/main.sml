@@ -14,27 +14,14 @@ struct
 type int = Int.t
 
 fun usage msg =
-   CommandLine.usage {usage = "[-mlkit] [-mlton </path/to/mlton>] [-mosml] [-poly] [-smlnj] bench1 bench2 ...",
+   CommandLine.usage {usage = "[-mlton </path/to/mlton>] bench1 bench2 ...",
                       msg = msg}
 
 val doOnce = ref false
 val doWiki = ref false
 val runArgs : string list ref = ref []
    
-fun withInput (file, f: unit -> 'a): 'a =
-   let
-      open FileDesc
-      val inFd =
-         let
-            open Pervasive.Posix.FileSys
-         in
-            openf (file, O_RDONLY, O.flags [])
-         end
-   in
-      Exn.finally
-      (fn () => FileDesc.fluidLet (FileDesc.stdin, inFd, f),
-       fn () => FileDesc.close inFd)
-   end
+
 
 fun ignoreOutput f =
    let
@@ -252,110 +239,6 @@ in
              end)
 end
 
-fun kitCompile {bench} =
-   let
-      val bargs = {abbrv = "MLKit", bench = bench}
-      val bin = batch_ bargs
-   in compileSizeRun
-      {command = Explicit {args = ["-o", bin, batch bargs],
-                           com = "mlkit"},
-       exe = bin,
-       doTextPlusData = true}
-   end
-   
-fun mosmlCompile {bench} =
-   let
-      val bargs = {abbrv = "Moscow ML", bench = bench}
-      val bin = batch_ bargs
-   in compileSizeRun
-      {command = Explicit {args = ["-orthodox", "-standalone", "-toplevel",
-                                   "-o", bin, batch bargs],
-                           com = "mosmlc"},
-       exe = bin,
-       doTextPlusData = false}
-   end
-
-
-val njSuffix =
-   Promise.delay
-   (fn () =>
-    let
-       val sml = "sml"
-       val suffix =
-           File.withTemp
-           (fn tmp =>
-            (File.withTempOut
-             (fn output =>
-              Out.output
-              (output, concat ["val tmp = TextIO.openOut(\"", tmp, "\");\n",
-                               "val _ = TextIO.output(tmp, SMLofNJ.SysInfo.getHeapSuffix());\n",
-                               "val _ = TextIO.closeOut(tmp);\n"]),
-              fn input =>
-              withInput
-              (input, fn () =>
-               Process.waitChildPid (Process.spawnp {file = sml, args = [sml]})))
-             ; In.withClose (In.openIn tmp, In.inputAll)))
-    in
-       suffix
-    end)
-
-fun njCompile {bench} =
-   Escape.new
-   (fn e =>
-    let
-       (* sml should start SML/NJ *)
-       val sml = "sml"
-       val {system, user} =
-          File.withTempOut
-          (fn out =>
-           (Out.output
-            (out, "local\nval _ = SMLofNJ.Internals.GC.messages false\n")
-            ; File.outputContents (concat [bench, ".sml"], out)
-            ; (Out.output
-               (out,
-                concat
-                ["in val _ = SMLofNJ.exportFn (\"", bench,
-                 "\", fn _ => (Main.doit ", benchCount bench,
-                 "; OS.Process.success))\nend\n"]
-                 ))),
-           fn input => withInput (input, fn () => timeIt (Explicit {args = [],
-                                                                    com = sml})))
-         handle _ => Escape.escape (e, {compile = NONE,
-                                        run = NONE,
-                                        size = NONE})
-       val suffix = Promise.force njSuffix
-       val heap = concat [bench, ".", suffix]
-    in
-       if not (File.doesExist heap)
-          then {compile = NONE,
-                run = NONE,
-                size = NONE}
-       else
-          let
-             val compile = Time.toReal (Time.+ (user, system))
-             val size = SOME (File.size heap)
-             val run =
-                  timeCall (sml, [concat ["@SMLload=", heap]])
-                  handle _ => Escape.escape (e, {compile = SOME compile,
-                                                 run = NONE,
-                                                 size = size})
-          in {compile = SOME compile,
-              run = SOME run,
-              size = size}
-          end
-    end)
-                
-fun polyCompile {bench} =
-   let
-      val bargs = {abbrv = "Poly/ML", bench = bench}
-      val bin = batch_ bargs
-   in compileSizeRun
-      {command = Explicit {args = [batch bargs, "-o", bin],
-                           com = "polyc"},
-       exe = bin,
-       doTextPlusData = false}
-   end
-
 type 'a data = {bench: string,
                 compiler: string,
                 value: 'a} list
@@ -369,7 +252,7 @@ fun main (_, args) =
                                                  run: real option,
                                                  size: Position.int option}} list ref 
         = ref []
-      fun pushCompiler compiler = List.push(compilers, compiler)
+
       fun pushCompilers compilers' = compilers := (List.rev compilers') @ (!compilers)
 
       fun setData (switch, data, str) =
@@ -440,35 +323,11 @@ fun main (_, args) =
                       (fn args =>
                        runArgs := String.tokens (args, Char.isSpace))),
                       ("err", SpaceString setErrData),
-                      ("mlkit", 
-                       None (fn () => pushCompiler
-                             {name = "MLKit",
-                              abbrv = "MLKit",
-                              main = default_main,
-                              test = kitCompile})),
-                      ("mosml",
-                       None (fn () => pushCompiler
-                             {name = "Moscow ML",
-                              abbrv = "Moscow ML",
-                              main = default_main,
-                              test = mosmlCompile})),
                       ("mlton",
                        SpaceString (fn arg => pushCompilers
                                     (makeMLton arg))),
                       ("once", trueRef doOnce),
                       ("out", SpaceString setOutData),
-                      ("poly",
-                       None (fn () => pushCompiler
-                             {name = "Poly/ML",
-                              abbrv = "Poly/ML",
-                              main = (fn bench => concat ["fun main _ = Main.doit ", benchCount bench, "\n"]),
-                              test = polyCompile})),
-                      ("smlnj",
-                       None (fn () => pushCompiler
-                             {name = "SML/NJ",
-                              abbrv = "SML/NJ",
-                              main = default_main,
-                              test = njCompile})),
                       trace,
                       ("wiki", trueRef doWiki)]}
       end
@@ -714,6 +573,7 @@ fun main (_, args) =
                       res
                    end)
                val _ = show (data, {showAll = true})
+               val _ = Out.flush Out.standard
                val totalFailures = !totalFailures
                val _ =
                   if List.isEmpty totalFailures
