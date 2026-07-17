@@ -1,8 +1,0 @@
-local
-   ../../../lib/mlton/sources.mlb
-   lib.sig
-   lib.sml
-   test-util.sml
-in
-   format-results-tests.sml
-end
