@@ -101,4 +101,9 @@ sig
     *)
    val writeResults: string -> unit
 
+   (* Returns the execution count for a benchmark as a string.
+    * Raises Fail if the benchmark name is not found.
+    *)
+   val benchCount: string -> string
+
 end

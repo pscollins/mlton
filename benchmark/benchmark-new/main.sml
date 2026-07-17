@@ -11,8 +11,6 @@
 structure Main =
 struct
 
-type int = Int.t
-
 fun usage msg =
    CommandLine.usage {usage = "[-mlton </path/to/mlton>] bench1 bench2 ...",
                       msg = msg}
@@ -23,62 +21,7 @@ val runArgs : string list ref = ref []
    
 
 
-val benchCounts: (string * int) list =
-   ("barnes-hut", 32768):: (* 41.85 sec *)
-   ("boyer", 12288):: (* 36.04 sec *)
-   ("checksum", 12288):: (* 42.48 sec *)
-   ("count-graphs", 12):: (* 30.27 sec *)
-   ("DLXSimulator", 6):: (* 31.83 sec *)
-   ("even-odd", 24):: (* 38.96 sec *)
-   ("fft", 16):: (* 39.63 sec *)
-   ("fib", 32):: (* 40.10 sec *)
-   ("flat-array", 49152):: (* 35.25 sec *)
-   ("hamlet", 384):: (* 45.55 sec *)
-   ("imp-for", 4096):: (* 31.57 sec *)
-   ("knuth-bendix", 3072):: (* 34.40 sec *)
-   ("lexgen", 1536):: (* 41.54 sec *)
-   ("life", 32):: (* 38.71 sec *)
-   ("logic", 256):: (* 33.24 sec *)
-   ("mandelbrot", 6):: (* 35.66 sec *)
-   ("matrix-multiply", 192):: (* 43.54 sec *)
-   ("md5", 12):: (* 34.73 sec *)
-   ("merge", 16384):: (* 33.35 sec *)
-   ("mlyacc", 3072):: (* 34.04 sec *)
-   ("model-elimination", 4):: (* 39.68 sec *)
-   ("mpuz", 128):: (* 39.63 sec *)
-   ("nucleic", 4096):: (* 31.41 sec *)
-   ("output1", 12):: (* 32.92 sec *)
-   ("peek", 192):: (* 36.99 sec *)
-   ("pidigits", 4096):: (* 37.95 sec *)
-   ("psdes-random", 24):: (* 33.80 sec *)
-   ("ratio-regions", 1536):: (* 47.22 sec *)
-   ("ray", 1536):: (* 37.14 sec *)
-   ("raytrace", 96):: (* 33.44 sec *)
-   ("simple", 1024):: (* 36.55 sec *)
-   ("smith-normal-form", 192):: (* 40.96 sec *)
-   ("string-concat", 256):: (* 30.66 sec *)
-   ("tailfib", 512):: (* 37.87 sec *)
-   ("tailmerge", 24576):: (* 42.64 sec *)
-   ("tak", 32):: (* 37.01 sec *)
-   ("tensor", 6):: (* 38.95 sec *)
-   ("tsp", 16):: (* 37.29 sec *)
-   ("tyan", 384):: (* 30.86 sec *)
-   ("vector32-concat", 48):: (* 41.15 sec *)
-   ("vector64-concat", 32):: (* 30.33 sec *)
-   ("vector-rev", 96):: (* 39.46 sec *)
-   ("vliw", 1024):: (* 39.60 sec *)
-   ("wc-input1", 16384):: (* 30.21 sec *)
-   ("wc-scanStream", 32768):: (* 31.67 sec *)
-   ("zebra", 64):: (* 30.04 sec *)
-   ("zern", 16384):: (* 38.98 sec *)
-   nil
-
-val benchCount =
-   String.memoize
-   (fn s =>
-    case List.peek (benchCounts, fn (b, _) => b = s) of
-       NONE => Error.bug (concat ["no benchCount for ", s])
-     | SOME (_, c) => Int.toString c)
+val benchCount = BenchmarkLib.benchCount
 
 val default_main = (fn bench => concat ["val _ = Main.doit ", benchCount bench, "\n"])
 

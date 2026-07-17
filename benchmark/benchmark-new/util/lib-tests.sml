@@ -288,4 +288,35 @@ val _ = runTest ("formatResult formatting with NONE", fn () =>
         assertEqual ("formatResult with NONE mismatch", output, expected)
     end)
 
+(* Test 9: benchCount for valid benchmark *)
+val _ = runTest ("benchCount valid benchmark", fn () =>
+    let
+        val output = BenchmarkLib.benchCount "fib"
+        val expected = "32"
+    in
+        assertEqual ("benchCount fib mismatch", output, expected)
+    end)
+
+(* Test 10: benchCount for another valid benchmark *)
+val _ = runTest ("benchCount valid benchmark 2", fn () =>
+    let
+        val output = BenchmarkLib.benchCount "barnes-hut"
+        val expected = "32768"
+    in
+        assertEqual ("benchCount barnes-hut mismatch", output, expected)
+    end)
+
+(* Test 11: benchCount for invalid benchmark raises Fail *)
+val _ = runTest ("benchCount invalid benchmark", fn () =>
+    let
+        val gotExpectedExn = ref false
+        val _ = (let val _ = BenchmarkLib.benchCount "non-existent-benchmark" in () end)
+                handle Fail msg =>
+                   if msg = "no benchCount for non-existent-benchmark"
+                      then gotExpectedExn := true
+                   else ()
+    in
+        assert ("benchCount should raise Fail with expected message", !gotExpectedExn)
+    end)
+
 val _ = summarize ()
