@@ -213,135 +213,17 @@ fun main (_, args) =
                   in
                      setHandler (Pervasive.Posix.Signal.pipe, Handler.ignore)
                   end
-               fun r2s n r = Real.format (r, Real.Format.fix (SOME n))
-               val i2s = Int.toCommaString
-               val p2s = i2s o Position.toInt
-               val s2s = fn s => s
                val failures = ref []
-               fun show ({compiles, runs, sizes, errs, outs}, {showAll}) =
-                  let
-                     val out = Out.standard
-                     val _ =
-                        List.foreach
-                        (compilers, fn {name, abbrv, ...} =>
-                         Out.output (out, concat [abbrv, " -- ", name, "\n"]))
-                     val _ =
-                        case !failures of
-                           [] => ()
-                         | fs =>
-                           Out.output
-                           (out,
-                            concat ["WARNING: ", base, " failed on: ",
-                                    concat (List.separate (fs, ", ")),
-                                    "\n"])
-                     fun show (title, data: 'a data, toString, toStringHtml) =
-                        let
-                           val _ = Out.output (out, concat [title, "\n"])
-                           val compilers =
-                              List.fold
-                              (compilers, [], fn ({name = n, abbrv = a, ...}, ac) =>
-                               if showAll
-                                  orelse List.exists (data, fn {compiler = c', ...} =>
-                                                      a = c')
-                                  then (n, a) :: ac
-                               else ac)
-                           val benchmarks =
-                              List.fold
-                              (benchmarks, [], fn (b, ac) =>
-                               if showAll
-                                  orelse List.exists (data, fn {bench = b', ...} =>
-                                                      b = b')
-                                  then b :: ac
-                               else ac)
-                           fun rows toString =
-                              ("benchmark"
-                               :: List.revMap (compilers, fn (_, a) => a))
-                              :: (List.revMap
-                                  (benchmarks, fn b =>
-                                   b :: (List.revMap
-                                         (compilers, fn (_, a) =>
-                                          case (List.peek
-                                                (data, fn {bench = b',
-                                                           compiler = c', ...} =>
-                                                  b = b' andalso a = c')) of
-                                             NONE => "*"
-                                           | SOME {value = v, ...} =>
-                                                toString v))))
-                           open Justify
-                           val () =
-                              outputTable
-                              (table {columnHeads = NONE,
-                                      justs = (Left ::
-                                               List.revMap (compilers,
-                                                            fn _ => Right)),
-                                      rows = rows toString},
-                               out)
-                           fun prow ns =
-                              let
-                                 fun p s = Out.output (out, s)
-                              in
-                                 case ns of
-                                    [] => raise Fail "bug"
-                                  | b :: ns =>
-                                       (p "||"
-                                        ; p b
-                                        ; List.foreach (ns, fn n =>
-                                                        (p "||"; p n))
-                                        ; p "||\n")
-                              end
-                           val _ =
-                              if not (!doWiki)
-                                 then ()
-                              else
-                                 let
-                                    val rows = rows toStringHtml
-                                 in                                       
-                                    prow (hd rows)
-                                    ; (List.foreach
-                                       (tl rows,
-                                        fn [] => raise Fail "bug"
-                                         | b :: r =>
-                                              let
-                                                 val b = 
-                                                    concat
-                                                    ["[attachment:",
-                                                     b, ".sml ", b, "]"]
-                                              in
-                                                 prow (b :: r)
-                                              end))
-                                 end
-                        in
-                           ()
-                        end
-                     val bases = List.keepAll (runs, fn {compiler, ...} =>
-                                               compiler = base)
-                     val ratios =
-                        List.fold
-                        (runs, [], fn ({bench, compiler, value}, ac) =>
-                         if compiler = base andalso not showAll
-                            then ac
-                         else
-                            {bench = bench,
-                             compiler = compiler,
-                             value =
-                             case List.peek (bases, fn {bench = b, ...} =>
-                                             bench = b) of
-                                NONE => ~1.0
-                              | SOME {value = v, ...} => value / v} :: ac)
-                     val _ = show ("run time ratio", ratios, r2s 2, r2s 1)
-                     val _ = show ("size", sizes, p2s, p2s)
-                     val _ = show ("compile time", compiles, r2s 2, r2s 2)
-                     val _ = show ("run time", runs, r2s 2, r2s 2)
-                     val _ = case !outData of
-                        NONE => ()
-                      | SOME (out, _) =>
-                           show (concat ["out: ", out], outs, s2s, s2s)
-                     val _ = case !errData of
-                        NONE => ()
-                      | SOME (err, _) =>
-                           show (concat ["err: ", err], errs, s2s, s2s)
-                  in ()
-                  end
+               fun show (results, {showAll}) =
+                  BenchmarkLib.showResults
+                  {compilers = List.map (compilers, fn {name, abbrv, ...} => {name = name, abbrv = abbrv}),
+                   benchmarks = benchmarks,
+                   failures = !failures,
+                   doWiki = !doWiki,
+                   outName = Option.map (!outData, fn (out, _) => out),
+                   errName = Option.map (!errData, fn (err, _) => err),
+                   showAll = showAll,
+                   results = results}
                val totalFailures = ref []
                val data = 
                   List.fold

@@ -73,4 +73,24 @@ sig
                                    run: real option,
                                    size: Position.int option}
 
+   type 'a data = {bench: string,
+                   compiler: string,
+                   value: 'a} list
+
+   (* Prints the benchmark execution results in a formatted table on standard output.
+    * Optionally generates wiki-formatted output if doWiki is true.
+    *)
+   val showResults: {compilers: {name: string, abbrv: string} list,
+                     benchmarks: string list,
+                     failures: string list,
+                     doWiki: bool,
+                     outName: string option,
+                     errName: string option,
+                     showAll: bool,
+                     results: {compiles: real data,
+                               runs: real data,
+                               sizes: Position.int data,
+                               errs: string data,
+                               outs: string data}} -> unit
+
 end
