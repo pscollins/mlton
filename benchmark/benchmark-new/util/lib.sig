@@ -85,9 +85,11 @@ sig
                        failures: string list,
                        doWiki: bool,
                        showAll: bool,
-                       results: {compiles: real data,
-                                 runs: real data,
-                                 sizes: Position.int data}} -> string
+                       results: {bench: string,
+                                 compiler: string,
+                                 compile: real option,
+                                 run: real option,
+                                 size: Position.int option} list} -> string
 
    (* Prints the formatted results string to the appropriate stream (stdout) and flushes.
     *)

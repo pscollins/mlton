@@ -108,9 +108,6 @@ in
              end)
 end
 
-type 'a data = {bench: string,
-                compiler: string,
-                value: 'a} list
 
 fun main (_, args) =
    let
@@ -189,16 +186,13 @@ fun main (_, args) =
                val totalFailures = ref []
                val data = 
                   List.fold
-                  (benchmarks, {compiles = [], runs = [], sizes = []},
+                  (benchmarks, [],
                    fn (bench, ac) =>
                    let
                       val foundOne = ref false
                       val res =
                          List.fold
-                         (compilers, ac, fn ({name, abbrv, test, ...},
-                                             ac as {compiles: real data,
-                                                    runs: real data,
-                                                    sizes: Position.int data}) =>
+                         (compilers, ac, fn ({name, abbrv, test, ...}, ac) =>
                           if true
                              then
                                 let
@@ -208,18 +202,18 @@ fun main (_, args) =
                                          andalso Option.isNone run
                                          then List.push (failures, bench)
                                       else ()
-                                   fun add (v, ac) =
-                                      case v of
-                                         NONE => ac
-                                       | SOME v =>
-                                            (foundOne := true
-                                             ; {bench = bench,
-                                                compiler = abbrv,
-                                                value = v} :: ac)
+                                   val _ =
+                                      if Option.isSome compile
+                                         orelse Option.isSome run
+                                         orelse Option.isSome size
+                                         then foundOne := true
+                                      else ()
                                    val ac =
-                                      {compiles = add (compile, compiles),
-                                       runs = add (run, runs),
-                                       sizes = add (size, sizes)}
+                                      {bench = bench,
+                                       compiler = abbrv,
+                                       compile = compile,
+                                       run = run,
+                                       size = size} :: ac
                                    val _ = show (ac, {showAll = false})
                                    val _ = Out.flush Out.standard
                                 in

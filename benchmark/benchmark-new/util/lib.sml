@@ -169,8 +169,31 @@ fun formatResults {compilers,
                    failures,
                    doWiki,
                    showAll,
-                   results = {compiles, runs, sizes}} =
+                   results: {bench: string,
+                             compiler: string,
+                             compile: real option,
+                             run: real option,
+                             size: Position.int option} list} =
    let
+      val compiles =
+         List.rev
+         (List.fold (results, [], fn ({bench, compiler, compile, ...}, ac) =>
+                     case compile of
+                        NONE => ac
+                      | SOME v => {bench = bench, compiler = compiler, value = v} :: ac))
+      val runs =
+         List.rev
+         (List.fold (results, [], fn ({bench, compiler, run, ...}, ac) =>
+                     case run of
+                        NONE => ac
+                      | SOME v => {bench = bench, compiler = compiler, value = v} :: ac))
+      val sizes =
+         List.rev
+         (List.fold (results, [], fn ({bench, compiler, size, ...}, ac) =>
+                     case size of
+                        NONE => ac
+                      | SOME v => {bench = bench, compiler = compiler, value = v} :: ac))
+
       val buffer = ref []
       fun print s = buffer := s :: !buffer
       fun printConcat ss = List.foreach (ss, print)
