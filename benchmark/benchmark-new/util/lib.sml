@@ -168,10 +168,8 @@ fun formatResults {compilers,
                    benchmarks,
                    failures,
                    doWiki,
-                   outName,
-                   errName,
                    showAll,
-                   results = {compiles, runs, sizes, errs, outs}} =
+                   results = {compiles, runs, sizes}} =
    let
       val buffer = ref []
       fun print s = buffer := s :: !buffer
@@ -194,7 +192,6 @@ fun formatResults {compilers,
       fun r2s n r = Real.format (r, Real.Format.fix (SOME n))
       val i2s = Int.toCommaString
       val p2s = i2s o Position.toInt
-      val s2s = fn s => s
       fun show (title, data: 'a data, toString, toStringHtml) =
          let
             val _ = printConcat [title, "\n"]
@@ -294,14 +291,6 @@ fun formatResults {compilers,
       val _ = show ("size", sizes, p2s, p2s)
       val _ = show ("compile time", compiles, r2s 2, r2s 2)
       val _ = show ("run time", runs, r2s 2, r2s 2)
-      val _ = case outName of
-         NONE => ()
-       | SOME out =>
-            show (concat ["out: ", out], outs, s2s, s2s)
-      val _ = case errName of
-         NONE => ()
-       | SOME err =>
-            show (concat ["err: ", err], errs, s2s, s2s)
    in
       String.concat (List.rev (!buffer))
    end

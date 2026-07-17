@@ -124,46 +124,7 @@ fun main (_, args) =
 
       fun pushCompilers compilers' = compilers := (List.rev compilers') @ (!compilers)
 
-      fun setData (switch, data, str) =
-         let
-            fun die () = usage (concat ["invalid -", switch, " argument: ", str])
-            open Regexp
-            val numSave = Save.new ()
-            val regexpSave = Save.new ()
-            val re = seq [save (star digit, numSave),
-                          char #",",
-                          save (star any, regexpSave)]
-            val reC = compileDFA re
-         in
-            case Compiled.matchAll (reC, str) of
-               NONE => die ()
-             | SOME match => 
-                  let
-                     val num = Match.lookupString (match, numSave)
-                     val num = case Int.fromString num of
-                                  NONE => die ()
-                                | SOME num => num
-                     val regexp = Match.lookupString (match, regexpSave)
-                     val (regexp, saves) = 
-                        case Regexp.fromString regexp of
-                           NONE => die ()
-                         | SOME regexp => regexp
-                     val save = if 0 <= num andalso num < Vector.length saves
-                                   then Vector.sub (saves, num)
-                                else die ()
-                     val regexpC = compileDFA regexp
-                     fun doit s =
-                         Option.map
-                         (Compiled.matchAll (regexpC, s),
-                          fn match => Match.lookupString (match, save))
-                  in
-                    data := SOME (str, doit)
-                  end
-         end
-      val outData : (string * (string -> string option)) option ref = ref NONE
-      val setOutData = fn str => setData ("out", outData, str)
-      val errData : (string * (string -> string option)) option ref = ref NONE
-      val setErrData = fn str => setData ("err", errData, str)
+
       (* Set the stack limit to its max, since mlkit segfaults on some benchmarks
        * otherwise.
        *)
@@ -191,12 +152,10 @@ fun main (_, args) =
                       SpaceString
                       (fn args =>
                        runArgs := String.tokens (args, Char.isSpace))),
-                      ("err", SpaceString setErrData),
                       ("mlton",
                        SpaceString (fn arg => pushCompilers
                                     (makeMLton arg))),
                       ("once", trueRef doOnce),
-                      ("out", SpaceString setOutData),
                       trace,
                       ("wiki", trueRef doWiki)]}
       end
@@ -222,8 +181,6 @@ fun main (_, args) =
                          benchmarks = benchmarks,
                          failures = !failures,
                          doWiki = !doWiki,
-                         outName = Option.map (!outData, fn (out, _) => out),
-                         errName = Option.map (!errData, fn (err, _) => err),
                          showAll = showAll,
                          results = results}
                   in
@@ -232,8 +189,7 @@ fun main (_, args) =
                val totalFailures = ref []
                val data = 
                   List.fold
-                  (benchmarks, {compiles = [], runs = [], sizes = [],
-                                outs = [], errs = []},
+                  (benchmarks, {compiles = [], runs = [], sizes = []},
                    fn (bench, ac) =>
                    let
                       val foundOne = ref false
@@ -242,9 +198,7 @@ fun main (_, args) =
                          (compilers, ac, fn ({name, abbrv, test, ...},
                                              ac as {compiles: real data,
                                                     runs: real data,
-                                                    sizes: Position.int data,
-                                                    outs: string data,
-                                                    errs: string data}) =>
+                                                    sizes: Position.int data}) =>
                           if true
                              then
                                 let
@@ -254,8 +208,6 @@ fun main (_, args) =
                                          andalso Option.isNone run
                                          then List.push (failures, bench)
                                       else ()
-                                   val out = NONE
-                                   val err = NONE
                                    fun add (v, ac) =
                                       case v of
                                          NONE => ac
@@ -267,9 +219,7 @@ fun main (_, args) =
                                    val ac =
                                       {compiles = add (compile, compiles),
                                        runs = add (run, runs),
-                                       sizes = add (size, sizes),
-                                       outs = add (out, outs),
-                                       errs = add (err, errs)}
+                                       sizes = add (size, sizes)}
                                    val _ = show (ac, {showAll = false})
                                    val _ = Out.flush Out.standard
                                 in

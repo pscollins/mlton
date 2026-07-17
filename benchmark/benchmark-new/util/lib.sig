@@ -84,14 +84,10 @@ sig
                        benchmarks: string list,
                        failures: string list,
                        doWiki: bool,
-                       outName: string option,
-                       errName: string option,
                        showAll: bool,
                        results: {compiles: real data,
                                  runs: real data,
-                                 sizes: Position.int data,
-                                 errs: string data,
-                                 outs: string data}} -> string
+                                 sizes: Position.int data}} -> string
 
    (* Prints the formatted results string to the appropriate stream (stdout) and flushes.
     *)
