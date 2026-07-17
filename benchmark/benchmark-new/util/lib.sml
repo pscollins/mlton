@@ -396,7 +396,7 @@ fun benchCount name = let
                    NONE => Error.bug (concat ["no benchCount for ", name])
                  | SOME (_, c) => c
    val count' = case (!maxBenchCount) of
-                    SOME maxCount => Int.max (maxCount, count)
+                    SOME maxCount => Int.min (maxCount, count)
                  | NONE => count
 in
    Int.toString count'
