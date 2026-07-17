@@ -319,4 +319,56 @@ val _ = runTest ("benchCount invalid benchmark", fn () =>
         assert ("benchCount should raise Fail with expected message", !gotExpectedExn)
     end)
 
+(* Test 12: maxBenchCount is initially NONE *)
+val _ = runTest ("maxBenchCount default value is NONE", fn () =>
+    case !BenchmarkLib.maxBenchCount of
+        NONE => ()
+      | SOME _ => raise TestFail "maxBenchCount is not initially NONE")
+
+(* Test 13: benchCount with maxBenchCount = SOME 10 (capping active) *)
+val _ = runTest ("benchCount capped by maxBenchCount (SOME 10)", fn () =>
+    let
+        val _ = BenchmarkLib.maxBenchCount := SOME 10
+        val outputFib = BenchmarkLib.benchCount "fib"
+        val outputBarnes = BenchmarkLib.benchCount "barnes-hut"
+        val _ = BenchmarkLib.maxBenchCount := NONE
+    in
+        assertEqual ("fib capped by 10", outputFib, "10");
+        assertEqual ("barnes-hut capped by 10", outputBarnes, "10")
+    end handle e => (BenchmarkLib.maxBenchCount := NONE; raise e))
+
+(* Test 14: benchCount with maxBenchCount = SOME 100 (partially active) *)
+val _ = runTest ("benchCount capped by maxBenchCount (SOME 100)", fn () =>
+    let
+        val _ = BenchmarkLib.maxBenchCount := SOME 100
+        val outputFib = BenchmarkLib.benchCount "fib"
+        val outputBarnes = BenchmarkLib.benchCount "barnes-hut"
+        val _ = BenchmarkLib.maxBenchCount := NONE
+    in
+        assertEqual ("fib not capped by 100", outputFib, "32");
+        assertEqual ("barnes-hut capped by 100", outputBarnes, "100")
+    end handle e => (BenchmarkLib.maxBenchCount := NONE; raise e))
+
+(* Test 15: benchCount with maxBenchCount = SOME 50000 (inactive capping) *)
+val _ = runTest ("benchCount not capped by maxBenchCount (SOME 50000)", fn () =>
+    let
+        val _ = BenchmarkLib.maxBenchCount := SOME 50000
+        val outputFib = BenchmarkLib.benchCount "fib"
+        val outputBarnes = BenchmarkLib.benchCount "barnes-hut"
+        val _ = BenchmarkLib.maxBenchCount := NONE
+    in
+        assertEqual ("fib not capped by 50000", outputFib, "32");
+        assertEqual ("barnes-hut not capped by 50000", outputBarnes, "32768")
+    end handle e => (BenchmarkLib.maxBenchCount := NONE; raise e))
+
+(* Test 16: benchCount with maxBenchCount = SOME 0 *)
+val _ = runTest ("benchCount capped by maxBenchCount (SOME 0)", fn () =>
+    let
+        val _ = BenchmarkLib.maxBenchCount := SOME 0
+        val outputFib = BenchmarkLib.benchCount "fib"
+        val _ = BenchmarkLib.maxBenchCount := NONE
+    in
+        assertEqual ("fib capped by 0", outputFib, "0")
+    end handle e => (BenchmarkLib.maxBenchCount := NONE; raise e))
+
 val _ = summarize ()

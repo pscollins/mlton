@@ -387,13 +387,19 @@ val benchCounts: (string * int) list =
    ("wc-scanStream", 32768):: (* 31.67 sec *)
    ("zebra", 64):: (* 30.04 sec *)
    ("zern", 16384):: (* 38.98 sec *)
-   nil
+    nil
 
-val benchCount =
-   String.memoize
-   (fn s =>
-    case List.peek (benchCounts, fn (b, _) => b = s) of
-       NONE => Error.bug (concat ["no benchCount for ", s])
-     | SOME (_, c) => Int.toString c)
+val maxBenchCount: int option ref = ref NONE
+
+fun benchCount name = let
+   val count = case List.peek (benchCounts, fn (b, _) => b = name) of
+                   NONE => Error.bug (concat ["no benchCount for ", name])
+                 | SOME (_, c) => c
+   val count' = case (!maxBenchCount) of
+                    SOME maxCount => Int.max (maxCount, count)
+                 | NONE => count
+in
+   Int.toString count'
+end
 
 end
