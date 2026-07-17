@@ -268,4 +268,24 @@ val _ = runTest ("Wiki formatting option", fn () =>
         assertEqual ("Wiki formatting output mismatch", output, expected)
     end)
 
+(* Test 7: formatResult for a single record *)
+val _ = runTest ("formatResult formatting", fn () =>
+    let
+        val res = {bench = "fib", compiler = "MLton", compile = SOME 1.25, run = SOME 0.10, size = SOME (Position.fromInt 1024)}
+        val output = BenchmarkLib.formatResult res
+        val expected = "fib (MLton) compile: 1.25s, run: 0.10s, size: 1,024"
+    in
+        assertEqual ("formatResult mismatch", output, expected)
+    end)
+
+(* Test 8: formatResult formatting with NONE *)
+val _ = runTest ("formatResult formatting with NONE", fn () =>
+    let
+        val res = {bench = "matrix", compiler = "GCC", compile = NONE, run = NONE, size = NONE}
+        val output = BenchmarkLib.formatResult res
+        val expected = "matrix (GCC) compile: *s, run: *s, size: *"
+    in
+        assertEqual ("formatResult with NONE mismatch", output, expected)
+    end)
+
 val _ = summarize ()

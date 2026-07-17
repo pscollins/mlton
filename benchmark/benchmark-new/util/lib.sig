@@ -73,9 +73,19 @@ sig
                                    run: real option,
                                    size: Position.int option}
 
+   type result = {bench: string,
+                  compiler: string,
+                  compile: real option,
+                  run: real option,
+                  size: Position.int option}
+
    type 'a data = {bench: string,
                    compiler: string,
                    value: 'a} list
+
+   (* Formats a single benchmark run result into a string.
+    *)
+   val formatResult: result -> string
 
    (* Formats the benchmark execution results into a string.
     * Optionally generates wiki-formatted output if doWiki is true.
@@ -85,11 +95,7 @@ sig
                        failures: string list,
                        doWiki: bool,
                        showAll: bool,
-                       results: {bench: string,
-                                 compiler: string,
-                                 compile: real option,
-                                 run: real option,
-                                 size: Position.int option} list} -> string
+                       results: result list} -> string
 
    (* Prints the formatted results string to the appropriate stream (stdout) and flushes.
     *)

@@ -183,6 +183,7 @@ fun main (_, args) =
                   in
                      BenchmarkLib.writeResults s
                   end
+               val _ = BenchmarkLib.formatResult
                val totalFailures = ref []
                val data = 
                   List.fold

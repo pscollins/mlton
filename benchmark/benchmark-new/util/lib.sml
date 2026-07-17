@@ -160,6 +160,27 @@ fun runTest {bench: string,
                          doOnce = doOnce})
    end
 
+type result = {bench: string,
+               compiler: string,
+               compile: real option,
+               run: real option,
+               size: Position.int option}
+
+fun formatResult {bench, compiler, compile, run, size} =
+   let
+      val r2s = fn r => Real.format (r, Real.Format.fix (SOME 2))
+      val p2s = Int.toCommaString o Position.toInt
+      fun showOpt opt toString =
+         case opt of
+            NONE => "*"
+          | SOME v => toString v
+   in
+      concat [bench, " (", compiler, ") ",
+              "compile: ", showOpt compile r2s, "s, ",
+              "run: ", showOpt run r2s, "s, ",
+              "size: ", showOpt size p2s]
+   end
+
 type 'a data = {bench: string,
                 compiler: string,
                 value: 'a} list
@@ -169,11 +190,7 @@ fun formatResults {compilers,
                    failures,
                    doWiki,
                    showAll,
-                   results: {bench: string,
-                             compiler: string,
-                             compile: real option,
-                             run: real option,
-                             size: Position.int option} list} =
+                   results: result list} =
    let
       val compiles =
          List.rev
