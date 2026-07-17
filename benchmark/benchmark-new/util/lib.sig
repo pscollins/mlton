@@ -102,8 +102,11 @@ sig
    val writeResults: string -> unit
 
    (* Returns the execution count for a benchmark as a string.
-    * Raises Fail if the benchmark name is not found.
+      Raises Fail if the benchmark name is not found.
+
+       If `maxBenchCount` is not `NONE`, the count is capped at `maxBenchCount`.
     *)
+   val maxBenchCount: (int option) ref
    val benchCount: string -> string
 
 end
