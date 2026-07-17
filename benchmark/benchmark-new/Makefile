@@ -33,12 +33,17 @@ BFLAGS := -wiki -mlton "/usr/bin/mlton"
 BFLAGS := -mlton "$(BIN)/mlton"
 
 .PHONY: unittest
-unittest: util/test-util-tests
+unittest: util/test-util-tests util/lib-tests
 	./util/test-util-tests
+	./util/lib-tests
 
 util/test-util-tests: util/test-util-tests.mlb $(shell $(MLBDEPS) util/test-util-tests.mlb)
 	@echo 'Compiling test-util-tests'
 	"$(RUN_MLTON)" @MLton $(RUN_MLTON_RUNTIME_ARGS) -- $(RUN_MLTON_COMPILE_ARGS) $(RUN_MLTON_COMPILE_XARGS) -target $(TARGET) -output util/test-util-tests util/test-util-tests.mlb
+
+util/lib-tests: util/lib-tests.mlb $(shell $(MLBDEPS) util/lib-tests.mlb)
+	@echo 'Compiling lib-tests'
+	"$(RUN_MLTON)" @MLton $(RUN_MLTON_RUNTIME_ARGS) -- $(RUN_MLTON_COMPILE_ARGS) $(RUN_MLTON_COMPILE_XARGS) -target $(TARGET) -output util/lib-tests util/lib-tests.mlb
 
 .PHONY: test
 test: $(NAME) unittest
