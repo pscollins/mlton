@@ -215,15 +215,20 @@ fun main (_, args) =
                   end
                val failures = ref []
                fun show (results, {showAll}) =
-                  BenchmarkLib.showResults
-                  {compilers = List.map (compilers, fn {name, abbrv, ...} => {name = name, abbrv = abbrv}),
-                   benchmarks = benchmarks,
-                   failures = !failures,
-                   doWiki = !doWiki,
-                   outName = Option.map (!outData, fn (out, _) => out),
-                   errName = Option.map (!errData, fn (err, _) => err),
-                   showAll = showAll,
-                   results = results}
+                  let
+                     val s =
+                        BenchmarkLib.formatResults
+                        {compilers = List.map (compilers, fn {name, abbrv, ...} => {name = name, abbrv = abbrv}),
+                         benchmarks = benchmarks,
+                         failures = !failures,
+                         doWiki = !doWiki,
+                         outName = Option.map (!outData, fn (out, _) => out),
+                         errName = Option.map (!errData, fn (err, _) => err),
+                         showAll = showAll,
+                         results = results}
+                  in
+                     BenchmarkLib.writeResults s
+                  end
                val totalFailures = ref []
                val data = 
                   List.fold

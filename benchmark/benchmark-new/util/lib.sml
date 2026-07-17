@@ -164,20 +164,22 @@ type 'a data = {bench: string,
                 compiler: string,
                 value: 'a} list
 
-fun showResults {compilers,
-                 benchmarks,
-                 failures,
-                 doWiki,
-                 outName,
-                 errName,
-                 showAll,
-                 results = {compiles, runs, sizes, errs, outs}} =
+fun formatResults {compilers,
+                   benchmarks,
+                   failures,
+                   doWiki,
+                   outName,
+                   errName,
+                   showAll,
+                   results = {compiles, runs, sizes, errs, outs}} =
    let
-      val out = Out.standard
+      val buffer = ref []
+      fun print s = buffer := s :: !buffer
+      fun printConcat ss = List.foreach (ss, print)
       val _ =
          List.foreach
          (compilers, fn {name, abbrv} =>
-          Out.output (out, concat [abbrv, " -- ", name, "\n"]))
+          printConcat [abbrv, " -- ", name, "\n"])
       val base =
          case compilers of
             [] => ""
@@ -186,18 +188,16 @@ fun showResults {compilers,
          case failures of
             [] => ()
           | fs =>
-            Out.output
-            (out,
-             concat ["WARNING: ", base, " failed on: ",
-                     concat (List.separate (fs, ", ")),
-                     "\n"])
+            printConcat ["WARNING: ", base, " failed on: ",
+                         concat (List.separate (fs, ", ")),
+                         "\n"]
       fun r2s n r = Real.format (r, Real.Format.fix (SOME n))
       val i2s = Int.toCommaString
       val p2s = i2s o Position.toInt
       val s2s = fn s => s
       fun show (title, data: 'a data, toString, toStringHtml) =
          let
-            val _ = Out.output (out, concat [title, "\n"])
+            val _ = printConcat [title, "\n"]
             val compilers =
                List.fold
                (compilers, [], fn ({name = n, abbrv = a}, ac) =>
@@ -228,34 +228,35 @@ fun showResults {compilers,
                               NONE => "*"
                             | SOME {value = v, ...} =>
                                  toString v))))
-            open Justify
-            val () =
-               outputTable
-               (table {columnHeads = NONE,
-                       justs = (Left ::
-                                List.revMap (compilers,
-                                             fn _ => Right)),
-                       rows = rows toString},
-                out)
-            fun prow ns =
-               let
-                  fun p s = Out.output (out, s)
-               in
-                  case ns of
-                     [] => raise Fail "bug"
-                   | b :: ns =>
-                        (p "||"
-                         ; p b
-                         ; List.foreach (ns, fn n =>
-                                         (p "||"; p n))
-                         ; p "||\n")
-               end
+            val t =
+               Justify.table {columnHeads = NONE,
+                              justs = (Justify.Left ::
+                                       List.revMap (compilers,
+                                                    fn _ => Justify.Right)),
+                              rows = rows toString}
+            val _ =
+               List.foreach (t, fn ss =>
+                             (case ss of
+                                 [] => ()
+                               | s :: ss =>
+                                    (print s
+                                     ; List.foreach (ss, fn s => (print " "; print s)))
+                                    ; print "\n"))
             val _ =
                if not doWiki
                   then ()
                else
                   let
                      val rows = rows toStringHtml
+                     fun prow ns =
+                        case ns of
+                           [] => raise Fail "bug"
+                         | b :: ns =>
+                              (print "||"
+                               ; print b
+                               ; List.foreach (ns, fn n =>
+                                               (print "||"; print n))
+                               ; print "||\n")
                   in                                       
                      prow (hd rows)
                      ; (List.foreach
@@ -301,7 +302,12 @@ fun showResults {compilers,
          NONE => ()
        | SOME err =>
             show (concat ["err: ", err], errs, s2s, s2s)
-   in ()
+   in
+      String.concat (List.rev (!buffer))
    end
+
+fun writeResults s =
+   (Out.output (Out.standard, s)
+    ; Out.flush Out.standard)
 
 end

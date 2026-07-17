@@ -77,20 +77,24 @@ sig
                    compiler: string,
                    value: 'a} list
 
-   (* Prints the benchmark execution results in a formatted table on standard output.
+   (* Formats the benchmark execution results into a string.
     * Optionally generates wiki-formatted output if doWiki is true.
     *)
-   val showResults: {compilers: {name: string, abbrv: string} list,
-                     benchmarks: string list,
-                     failures: string list,
-                     doWiki: bool,
-                     outName: string option,
-                     errName: string option,
-                     showAll: bool,
-                     results: {compiles: real data,
-                               runs: real data,
-                               sizes: Position.int data,
-                               errs: string data,
-                               outs: string data}} -> unit
+   val formatResults: {compilers: {name: string, abbrv: string} list,
+                       benchmarks: string list,
+                       failures: string list,
+                       doWiki: bool,
+                       outName: string option,
+                       errName: string option,
+                       showAll: bool,
+                       results: {compiles: real data,
+                                 runs: real data,
+                                 sizes: Position.int data,
+                                 errs: string data,
+                                 outs: string data}} -> string
+
+   (* Prints the formatted results string to the appropriate stream (stdout) and flushes.
+    *)
+   val writeResults: string -> unit
 
 end
