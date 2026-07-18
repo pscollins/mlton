@@ -96,6 +96,11 @@ fun main (_, args) =
                        SpaceString (fn arg => pushCompilers
                                     (makeMLton arg))),
                       ("json", trueRef outputJson),
+                      ("json=",
+                       String (fn arg =>
+                               case Bool.fromString arg of
+                                  SOME b => outputJson := b
+                                | NONE => usage (concat ["invalid argument to -json: ", arg]))),
                       ("once", trueRef doOnce),
                       trace]}
       end
