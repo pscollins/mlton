@@ -25,7 +25,7 @@ To run the full suite with default benchmark counts:
 ./run_pre_flatten_vs_head.sh --name=my_benchmark_run
 ```
 
-This will run all benchmarks and output the JSONL file to `outputs/my_benchmark_run:HOSTNAME:YYYYMMDD_HHMMSS`.
+This will run all benchmarks and output the JSONL file to `outputs/my_benchmark_run:HOSTNAME:GIT_HASH:YYYYMMDD_HHMMSS.jsonl`.
 
 #### 2. Quick Verification Run (Recommended for testing)
 To verify that everything compiles and runs correctly without waiting for the full iteration counts (which can take up to an hour), you can restrict each benchmark to a single iteration and a single trial run:

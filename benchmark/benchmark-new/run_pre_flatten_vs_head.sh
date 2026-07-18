@@ -29,8 +29,9 @@ if [ -z "$NAME" ]; then
 fi
 
 HOSTNAME=$(hostname)
+GIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 DATE=$(date +"%Y%m%d_%H%M%S")
-OUTFILE="${OUTPUTS_DIR}/${NAME}:${HOSTNAME}:${DATE}"
+OUTFILE="${OUTPUTS_DIR}/${NAME}:${HOSTNAME}:${GIT_HASH}:${DATE}.jsonl"
 
 # Make sure outputs directory exists
 mkdir -p "${OUTPUTS_DIR}"
