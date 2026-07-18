@@ -18,6 +18,7 @@ fun usage msg =
 val doOnce = ref false
 val outputJson = ref false
 val runArgs : string list ref = ref []
+val outfile : string option ref = ref NONE
    
 
 
@@ -102,6 +103,7 @@ fun main (_, args) =
                                   SOME b => outputJson := b
                                 | NONE => usage (concat ["invalid argument to -json: ", arg]))),
                       ("once", trueRef doOnce),
+                      ("outfile", SpaceString (fn arg => outfile := SOME arg)),
                       trace]}
       end
    in
@@ -174,6 +176,7 @@ fun main (_, args) =
                    end)
                val _ = show (data, {showAll = true})
                val _ = Out.flush Out.standard
+               val _ = BenchmarkLib.maybeWriteToFile (!outfile, List.rev data)
                val totalFailures = !totalFailures
                val _ =
                   if !outputJson
