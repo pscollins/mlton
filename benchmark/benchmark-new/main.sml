@@ -16,6 +16,7 @@ fun usage msg =
                       msg = msg}
 
 val doOnce = ref false
+val outputJson = ref false
 val runArgs : string list ref = ref []
    
 
@@ -94,6 +95,7 @@ fun main (_, args) =
                       ("mlton",
                        SpaceString (fn arg => pushCompilers
                                     (makeMLton arg))),
+                      ("json", trueRef outputJson),
                       ("once", trueRef doOnce),
                       trace]}
       end
@@ -113,8 +115,10 @@ fun main (_, args) =
                val failures = ref []
                fun show (results, {showAll}) =
                   let
+                     val results = if !outputJson then List.rev results else results
                      val s =
                         BenchmarkLib.formatResults
+                        (if !outputJson then BenchmarkLib.jsonRow else BenchmarkLib.legacyRow)
                         {compilers = List.map (compilers, fn {name, abbrv, ...} => {name = name, abbrv = abbrv}),
                          benchmarks = benchmarks,
                          failures = !failures,
@@ -150,7 +154,7 @@ fun main (_, args) =
                                          then foundOne := true
                                       else ()
                                    val ac = r :: ac
-                                   val _ = show (ac, {showAll = false})
+                                   val _ = if !outputJson then () else show (ac, {showAll = false})
                                    val _ = Out.flush Out.standard
                                  in
                                     ac
@@ -167,7 +171,9 @@ fun main (_, args) =
                val _ = Out.flush Out.standard
                val totalFailures = !totalFailures
                val _ =
-                  if List.isEmpty totalFailures
+                  if !outputJson
+                     then ()
+                  else if List.isEmpty totalFailures
                      then ()
                   else (print ("The following benchmarks failed completely.\n")
                         ; List.foreach (totalFailures, fn s =>

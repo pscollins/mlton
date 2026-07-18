@@ -234,124 +234,128 @@ type 'a data = {bench: string,
                 compiler: string,
                 value: 'a} list
 
-fun formatResults {compilers,
-                   benchmarks,
-                   failures,
-                   showAll,
-                   results: runResult list} =
-   let
-      val compiles =
-         List.rev
-         (List.fold (results, [], fn ({bench, compilerAbbrev, compileTime, ...}: runResult, ac) =>
-                     case compileTime of
-                        NONE => ac
-                      | SOME v => {bench = bench, compiler = compilerAbbrev, value = v} :: ac))
-      val runs =
-         List.rev
-         (List.fold (results, [], fn ({bench, compilerAbbrev, runTime, ...}: runResult, ac) =>
-                     case runTime of
-                        NONE => ac
-                      | SOME v => {bench = bench, compiler = compilerAbbrev, value = v} :: ac))
-      val sizes =
-         List.rev
-         (List.fold (results, [], fn ({bench, compilerAbbrev, binarySize, ...}: runResult, ac) =>
-                     case binarySize of
-                        NONE => ac
-                      | SOME v => {bench = bench, compiler = compilerAbbrev, value = v} :: ac))
-
-      val buffer = ref []
-      fun print s = buffer := s :: !buffer
-      fun printConcat ss = List.foreach (ss, print)
-      val _ =
-         List.foreach
-         (compilers, fn {name, abbrv} =>
-          printConcat [abbrv, " -- ", name, "\n"])
-      val base =
-         case compilers of
-            [] => ""
-          | c :: _ => #abbrv c
-      val _ =
-         case failures of
-            [] => ()
-          | fs =>
-            printConcat ["WARNING: ", base, " failed on: ",
-                         concat (List.separate (fs, ", ")),
-                         "\n"]
-      fun r2s n r = Real.format (r, Real.Format.fix (SOME n))
-      val i2s = Int.toCommaString
-      val p2s = i2s o Int64.toInt
-      fun show (title, data: 'a data, toString) =
+fun formatResults rowType {compilers,
+                           benchmarks,
+                           failures,
+                           showAll,
+                           results: runResult list} =
+   case rowType of
+      legacyRow =>
          let
-            val _ = printConcat [title, "\n"]
-            val compilers =
-               List.fold
-               (compilers, [], fn ({name = n, abbrv = a}, ac) =>
-                if showAll
-                   orelse List.exists (data, fn {compiler = c', ...} =>
-                                       a = c')
-                   then (n, a) :: ac
-                else ac)
-            val benchmarks =
-               List.fold
-               (benchmarks, [], fn (b, ac) =>
-                if showAll
-                   orelse List.exists (data, fn {bench = b', ...} =>
-                                       b = b')
-                   then b :: ac
-                else ac)
-            fun rows toString =
-               ("benchmark"
-                :: List.revMap (compilers, fn (_, a) => a))
-               :: (List.revMap
-                   (benchmarks, fn b =>
-                    b :: (List.revMap
-                          (compilers, fn (_, a) =>
-                           case (List.peek
-                                 (data, fn {bench = b',
-                                            compiler = c', ...} =>
-                                     b = b' andalso a = c')) of
-                               NONE => "*"
-                             | SOME {value = v, ...} =>
-                                  toString v))))
-            val t =
-               Justify.table {columnHeads = NONE,
-                              justs = (Justify.Left ::
-                                       List.revMap (compilers,
-                                                    fn _ => Justify.Right)),
-                              rows = rows toString}
+            val compiles =
+               List.rev
+               (List.fold (results, [], fn ({bench, compilerAbbrev, compileTime, ...}: runResult, ac) =>
+                           case compileTime of
+                              NONE => ac
+                            | SOME v => {bench = bench, compiler = compilerAbbrev, value = v} :: ac))
+            val runs =
+               List.rev
+               (List.fold (results, [], fn ({bench, compilerAbbrev, runTime, ...}: runResult, ac) =>
+                           case runTime of
+                              NONE => ac
+                            | SOME v => {bench = bench, compiler = compilerAbbrev, value = v} :: ac))
+            val sizes =
+               List.rev
+               (List.fold (results, [], fn ({bench, compilerAbbrev, binarySize, ...}: runResult, ac) =>
+                           case binarySize of
+                              NONE => ac
+                            | SOME v => {bench = bench, compiler = compilerAbbrev, value = v} :: ac))
+
+            val buffer = ref []
+            fun print s = buffer := s :: !buffer
+            fun printConcat ss = List.foreach (ss, print)
             val _ =
-               List.foreach (t, fn ss =>
-                             (case ss of
-                                 [] => ()
-                               | s :: ss =>
-                                    (print s
-                                     ; List.foreach (ss, fn s => (print " "; print s)))
-                                    ; print "\n"))
+               List.foreach
+               (compilers, fn {name, abbrv} =>
+                printConcat [abbrv, " -- ", name, "\n"])
+            val base =
+               case compilers of
+                  [] => ""
+                | c :: _ => #abbrv c
+            val _ =
+               case failures of
+                  [] => ()
+                | fs =>
+                  printConcat ["WARNING: ", base, " failed on: ",
+                               concat (List.separate (fs, ", ")),
+                               "\n"]
+            fun r2s n r = Real.format (r, Real.Format.fix (SOME n))
+            val i2s = Int.toCommaString
+            val p2s = i2s o Int64.toInt
+            fun show (title, data: 'a data, toString) =
+               let
+                  val _ = printConcat [title, "\n"]
+                  val compilers =
+                     List.fold
+                     (compilers, [], fn ({name = n, abbrv = a}, ac) =>
+                      if showAll
+                         orelse List.exists (data, fn {compiler = c', ...} =>
+                                             a = c')
+                         then (n, a) :: ac
+                      else ac)
+                  val benchmarks =
+                     List.fold
+                     (benchmarks, [], fn (b, ac) =>
+                      if showAll
+                         orelse List.exists (data, fn {bench = b', ...} =>
+                                             b = b')
+                         then b :: ac
+                      else ac)
+                  fun rows toString =
+                     ("benchmark"
+                      :: List.revMap (compilers, fn (_, a) => a))
+                     :: (List.revMap
+                         (benchmarks, fn b =>
+                          b :: (List.revMap
+                                (compilers, fn (_, a) =>
+                                 case (List.peek
+                                       (data, fn {bench = b',
+                                                  compiler = c', ...} =>
+                                           b = b' andalso a = c')) of
+                                     NONE => "*"
+                                   | SOME {value = v, ...} =>
+                                        toString v))))
+                  val t =
+                     Justify.table {columnHeads = NONE,
+                                    justs = (Justify.Left ::
+                                             List.revMap (compilers,
+                                                          fn _ => Justify.Right)),
+                                    rows = rows toString}
+                  val _ =
+                     List.foreach (t, fn ss =>
+                                   (case ss of
+                                       [] => ()
+                                     | s :: ss =>
+                                          (print s
+                                           ; List.foreach (ss, fn s => (print " "; print s)))
+                                          ; print "\n"))
+               in
+                  ()
+               end
+            val bases = List.keepAll (runs, fn {compiler, ...} =>
+                                      compiler = base)
+            val ratios =
+               List.fold
+               (runs, [], fn ({bench, compiler, value}, ac) =>
+                if compiler = base andalso not showAll
+                   then ac
+                else
+                   {bench = bench,
+                    compiler = compiler,
+                    value =
+                    case List.peek (bases, fn {bench = b, ...} =>
+                                    bench = b) of
+                       NONE => ~1.0
+                     | SOME {value = v, ...} => value / v} :: ac)
+            val _ = show ("run time ratio", ratios, r2s 2)
+            val _ = show ("size", sizes, p2s)
+            val _ = show ("compile time", compiles, r2s 2)
+            val _ = show ("run time", runs, r2s 2)
          in
-            ()
+            String.concat (List.rev (!buffer))
          end
-      val bases = List.keepAll (runs, fn {compiler, ...} =>
-                                compiler = base)
-      val ratios =
-         List.fold
-         (runs, [], fn ({bench, compiler, value}, ac) =>
-          if compiler = base andalso not showAll
-             then ac
-          else
-             {bench = bench,
-              compiler = compiler,
-              value =
-              case List.peek (bases, fn {bench = b, ...} =>
-                              bench = b) of
-                 NONE => ~1.0
-               | SOME {value = v, ...} => value / v} :: ac)
-      val _ = show ("run time ratio", ratios, r2s 2)
-      val _ = show ("size", sizes, p2s)
-      val _ = show ("compile time", compiles, r2s 2)
-      val _ = show ("run time", runs, r2s 2)
-   in
-      String.concat (List.rev (!buffer))
-   end
+    | jsonRow =>
+         String.concat (List.map (results, fn r => concat [formatResult jsonRow r, "\n"]))
 
 fun writeResults s =
    (Out.output (Out.standard, s)

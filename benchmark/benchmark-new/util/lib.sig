@@ -108,7 +108,8 @@ sig
 
    (* Formats the benchmark execution results into a string.
     *)
-   val formatResults: {compilers: {name: string, abbrv: string} list,
+   val formatResults: rowType ->
+                      {compilers: {name: string, abbrv: string} list,
                        benchmarks: string list,
                        failures: string list,
                        showAll: bool,

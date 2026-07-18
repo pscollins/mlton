@@ -25,7 +25,7 @@ val singleBenchmark = ["fib"]
 (* Test 1: Empty results / minimal input *)
 val _ = runTest ("Empty results", fn () =>
     let
-        val output = BenchmarkLib.formatResults {
+        val output = BenchmarkLib.formatResults BenchmarkLib.legacyRow {
             compilers = singleCompiler,
             benchmarks = singleBenchmark,
             failures = [],
@@ -49,7 +49,7 @@ val _ = runTest ("Empty results", fn () =>
 (* Test 2: Empty results with showAll = true *)
 val _ = runTest ("Empty results with showAll", fn () =>
     let
-        val output = BenchmarkLib.formatResults {
+        val output = BenchmarkLib.formatResults BenchmarkLib.legacyRow {
             compilers = singleCompiler,
             benchmarks = singleBenchmark,
             failures = [],
@@ -76,7 +76,7 @@ val _ = runTest ("Empty results with showAll", fn () =>
 (* Test 3: Failure warning message *)
 val _ = runTest ("Failure warning formatting", fn () =>
     let
-        val output = BenchmarkLib.formatResults {
+        val output = BenchmarkLib.formatResults BenchmarkLib.legacyRow {
             compilers = singleCompiler,
             benchmarks = singleBenchmark,
             failures = ["fib", "matrix"],
@@ -113,7 +113,7 @@ val _ = runTest ("Full data (showAll = false)", fn () =>
             {bench = "matrix", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 2.40, runTime = SOME 0.80, binarySize = SOME (Int64.fromInt 2048)}
         ]
 
-        val output = BenchmarkLib.formatResults {
+        val output = BenchmarkLib.formatResults BenchmarkLib.legacyRow {
             compilers = compilers,
             benchmarks = benchmarks,
             failures = [],
@@ -157,7 +157,7 @@ val _ = runTest ("Missing baseline ratio (~1.00)", fn () =>
             {bench = "fib", cmd = "gcc", compilerAbbrev = "GCC", compileTime = NONE, runTime = SOME 0.20, binarySize = NONE}
         ]
 
-        val output = BenchmarkLib.formatResults {
+        val output = BenchmarkLib.formatResults BenchmarkLib.legacyRow {
             compilers = compilers,
             benchmarks = benchmarks,
             failures = [],
@@ -180,6 +180,52 @@ val _ = runTest ("Missing baseline ratio (~1.00)", fn () =>
             "fib       0.20\n"
     in
         assertEqual ("Missing baseline ratio output mismatch", output, expected)
+    end)
+
+(* Test 6a: formatResults with jsonRow on empty results *)
+val _ = runTest ("formatResults empty JSON", fn () =>
+    let
+        val output = BenchmarkLib.formatResults BenchmarkLib.jsonRow {
+            compilers = singleCompiler,
+            benchmarks = singleBenchmark,
+            failures = [],
+            showAll = false,
+            results = []
+        }
+        val expected = ""
+    in
+        assertEqual ("JSON output mismatch", output, expected)
+    end)
+
+(* Test 6b: formatResults with jsonRow on full data *)
+val _ = runTest ("formatResults full JSON", fn () =>
+    let
+        val compilers = [
+            {name = "MLton Compiler", abbrv = "MLton"},
+            {name = "GCC Compiler", abbrv = "GCC"}
+        ]
+        val benchmarks = ["fib", "matrix"]
+        
+        val resultsData = [
+            {bench = "fib", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 1.25, runTime = SOME 0.10, binarySize = SOME (Int64.fromInt 1024)},
+            {bench = "fib", cmd = "gcc", compilerAbbrev = "GCC", compileTime = SOME 0.50, runTime = SOME 0.20, binarySize = SOME (Int64.fromInt 512)},
+            {bench = "matrix", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 2.40, runTime = SOME 0.80, binarySize = SOME (Int64.fromInt 2048)}
+        ]
+
+        val output = BenchmarkLib.formatResults BenchmarkLib.jsonRow {
+            compilers = compilers,
+            benchmarks = benchmarks,
+            failures = [],
+            showAll = false,
+            results = resultsData
+        }
+
+        val expected =
+            "{\"bench\":\"fib\",\"cmd\":\"mlton\",\"compilerAbbrev\":\"MLton\",\"compileTime\":1.25,\"runTime\":0.1,\"binarySize\":1024}\n" ^
+            "{\"bench\":\"fib\",\"cmd\":\"gcc\",\"compilerAbbrev\":\"GCC\",\"compileTime\":0.5,\"runTime\":0.2,\"binarySize\":512}\n" ^
+            "{\"bench\":\"matrix\",\"cmd\":\"mlton\",\"compilerAbbrev\":\"MLton\",\"compileTime\":2.4,\"runTime\":0.8,\"binarySize\":2048}\n"
+    in
+        assertEqual ("JSON output mismatch", output, expected)
     end)
 
 (* Test 7a: formatResult for a single record (legacy) *)
