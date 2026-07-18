@@ -115,9 +115,12 @@ sig
                        showAll: bool,
                        results: runResult list} -> string
 
-   (* Prints the formatted results string to the appropriate stream (stdout) and flushes.
-    *)
+   (* Prints the formatted results string to the appropriate stream (stdout) and flushes. *)
    val writeResults: string -> unit
+
+   (* If (NONE, _), do nothing. Otherwise, write the stringified `runResults`
+      resutts to the provided path *)
+   val maybeWriteToFile: (string option * runResult list) -> unit
 
    (* Returns the execution count for a benchmark as a string.
       Raises Fail if the benchmark name is not found.

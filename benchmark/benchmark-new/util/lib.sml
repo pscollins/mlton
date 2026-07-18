@@ -361,6 +361,22 @@ fun writeResults s =
    (Out.output (Out.standard, s)
     ; Out.flush Out.standard)
 
+fun maybeWriteToFile (optPath: string option, results: runResult list) : unit = let
+   val resultToString = formatResult jsonRow
+   fun writeResult s result = TextIO.output (s, (resultToString result) ^ "\n")
+   fun doWrite path = let
+      val _ = print (concat ["Writing output to: ", path])
+      val stream = TextIO.openOut path
+      val _ = List.foreach (results, (writeResult stream))
+      val _ = TextIO.closeOut stream
+   in
+      ()
+   end
+
+in
+   Option.app (optPath, doWrite)
+end
+
 val benchCounts: (string * int) list =
    ("barnes-hut", 32768):: (* 41.85 sec *)
    ("boyer", 12288):: (* 36.04 sec *)

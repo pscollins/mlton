@@ -362,4 +362,46 @@ val _ = runTest ("benchCount capped by maxBenchCount (SOME 0)", fn () =>
         assertEqual ("fib capped by 0", outputFib, "0")
     end handle e => (BenchmarkLib.maxBenchCount := NONE; raise e))
 
+(* Test 17: maybeWriteToFile with NONE *)
+val _ = runTest ("maybeWriteToFile with NONE", fn () =>
+    let
+        val testFile = "test_none.json"
+        val _ = if File.doesExist testFile then File.remove testFile else ()
+        val results = [{bench = "fib", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 1.25, runTime = SOME 0.10, binarySize = SOME (Int64.fromInt 1024)}]
+        val _ = BenchmarkLib.maybeWriteToFile (NONE, results)
+        val exists = File.doesExist testFile
+    in
+        assert ("File should not exist when path is NONE", not exists)
+    end)
+
+(* Test 18: maybeWriteToFile with SOME path and empty results *)
+val _ = runTest ("maybeWriteToFile with SOME path and empty results", fn () =>
+    let
+        val testFile = "test_empty_results.json"
+        val _ = if File.doesExist testFile then File.remove testFile else ()
+        val _ = BenchmarkLib.maybeWriteToFile (SOME testFile, [])
+        val exists = File.doesExist testFile
+        val _ = assert ("File should exist", exists)
+        val content = File.contents testFile
+        val _ = File.remove testFile
+    in
+        assertEqual ("File content should be empty", content, "")
+    end handle e => (if File.doesExist "test_empty_results.json" then File.remove "test_empty_results.json" else (); raise e))
+
+(* Test 19: maybeWriteToFile with SOME path and non-empty results *)
+val _ = runTest ("maybeWriteToFile with SOME path and non-empty results", fn () =>
+    let
+        val testFile = "test_results.json"
+        val _ = if File.doesExist testFile then File.remove testFile else ()
+        val results = [{bench = "fib", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 1.25, runTime = SOME 0.10, binarySize = SOME (Int64.fromInt 1024)}]
+        val _ = BenchmarkLib.maybeWriteToFile (SOME testFile, results)
+        val exists = File.doesExist testFile
+        val _ = assert ("File should exist", exists)
+        val content = File.contents testFile
+        val expected = "{\"bench\":\"fib\",\"cmd\":\"mlton\",\"compilerAbbrev\":\"MLton\",\"compileTime\":1.25,\"runTime\":0.1,\"binarySize\":1024}\n"
+        val _ = File.remove testFile
+    in
+        assertEqual ("File content should match", content, expected)
+    end handle e => (if File.doesExist "test_results.json" then File.remove "test_results.json" else (); raise e))
+
 val _ = summarize ()
