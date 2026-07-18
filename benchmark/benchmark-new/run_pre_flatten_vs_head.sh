@@ -28,8 +28,9 @@ if [ -z "$NAME" ]; then
   exit 1
 fi
 
-TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-OUTFILE="${OUTPUTS_DIR}/${NAME}-${TIMESTAMP}.jsonl"
+HOSTNAME=$(hostname)
+DATE=$(date +"%Y%m%d_%H%M%S")
+OUTFILE="${OUTPUTS_DIR}/${NAME}:${HOSTNAME}:${DATE}"
 
 # Make sure outputs directory exists
 mkdir -p "${OUTPUTS_DIR}"
