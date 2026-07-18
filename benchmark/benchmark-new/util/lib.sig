@@ -98,9 +98,13 @@ sig
                   run: real option,
                   size: Position.int option}
 
-   (* Formats a single benchmark run result into a string.
-    *)
-   val formatResult: runResult -> string
+   (* Formats a single benchmark run result into a string. *)
+   datatype rowType =
+            (* Default MLton formatting *)
+            legacyRow
+            (* JSON format *)
+            | jsonRow
+   val formatResult: rowType -> runResult -> string
 
    (* Formats the benchmark execution results into a string.
     *)

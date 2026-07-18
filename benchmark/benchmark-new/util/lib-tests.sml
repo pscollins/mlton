@@ -182,25 +182,56 @@ val _ = runTest ("Missing baseline ratio (~1.00)", fn () =>
         assertEqual ("Missing baseline ratio output mismatch", output, expected)
     end)
 
-(* Test 7: formatResult for a single record *)
-val _ = runTest ("formatResult formatting", fn () =>
+(* Test 7a: formatResult for a single record (legacy) *)
+val _ = runTest ("formatResult formatting (legacy)", fn () =>
     let
         val res = {bench = "fib", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 1.25, runTime = SOME 0.10, binarySize = SOME (Int64.fromInt 1024)}
-        val output = BenchmarkLib.formatResult res
+        val output = BenchmarkLib.formatResult BenchmarkLib.legacyRow res
         val expected = "fib (MLton) compile: 1.25s, run: 0.10s, size: 1,024"
     in
         assertEqual ("formatResult mismatch", output, expected)
     end)
 
-(* Test 8: formatResult formatting with NONE *)
-val _ = runTest ("formatResult formatting with NONE", fn () =>
+(* Test 7b: formatResult for a single record (json) *)
+val _ = runTest ("formatResult formatting (json)", fn () =>
+    let
+        val res = {bench = "fib", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 1.25, runTime = SOME 0.10, binarySize = SOME (Int64.fromInt 1024)}
+        val output = BenchmarkLib.formatResult BenchmarkLib.jsonRow res
+        val expected = "{\"bench\":\"fib\",\"cmd\":\"mlton\",\"compilerAbbrev\":\"MLton\",\"compileTime\":1.25,\"runTime\":0.1,\"binarySize\":1024}"
+    in
+        assertEqual ("formatResult json mismatch", output, expected)
+    end)
+
+(* Test 8a: formatResult formatting with NONE (legacy) *)
+val _ = runTest ("formatResult formatting with NONE (legacy)", fn () =>
     let
         val res = {bench = "matrix", cmd = "gcc", compilerAbbrev = "GCC", compileTime = NONE, runTime = NONE, binarySize = NONE}
-        val output = BenchmarkLib.formatResult res
+        val output = BenchmarkLib.formatResult BenchmarkLib.legacyRow res
         val expected = "matrix (GCC) compile: *s, run: *s, size: *"
     in
         assertEqual ("formatResult with NONE mismatch", output, expected)
     end)
+
+(* Test 8b: formatResult formatting with NONE (json) *)
+val _ = runTest ("formatResult formatting with NONE (json)", fn () =>
+    let
+        val res = {bench = "matrix", cmd = "gcc", compilerAbbrev = "GCC", compileTime = NONE, runTime = NONE, binarySize = NONE}
+        val output = BenchmarkLib.formatResult BenchmarkLib.jsonRow res
+        val expected = "{\"bench\":\"matrix\",\"cmd\":\"gcc\",\"compilerAbbrev\":\"GCC\",\"compileTime\":null,\"runTime\":null,\"binarySize\":null}"
+    in
+        assertEqual ("formatResult json with NONE mismatch", output, expected)
+    end)
+
+(* Test 8c: formatResult formatting with escape characters (json) *)
+val _ = runTest ("formatResult formatting with escape characters (json)", fn () =>
+    let
+        val res = {bench = "hello\"world\\", cmd = "run \"me\"", compilerAbbrev = "AB\"C", compileTime = SOME 0.05, runTime = SOME 0.15, binarySize = SOME (Int64.fromInt 256)}
+        val output = BenchmarkLib.formatResult BenchmarkLib.jsonRow res
+        val expected = "{\"bench\":\"hello\\\"world\\\\\",\"cmd\":\"run \\\"me\\\"\",\"compilerAbbrev\":\"AB\\\"C\",\"compileTime\":0.05,\"runTime\":0.15,\"binarySize\":256}"
+    in
+        assertEqual ("formatResult json escape mismatch", output, expected)
+    end)
+
 
 (* Test 9: benchCount for valid benchmark *)
 val _ = runTest ("benchCount valid benchmark", fn () =>

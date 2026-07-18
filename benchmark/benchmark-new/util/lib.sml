@@ -180,20 +180,55 @@ type result = {bench: string,
                run: real option,
                size: Position.int option}
 
-fun formatResult ({bench, cmd = _, compilerAbbrev, compileTime, runTime, binarySize} : runResult) =
-   let
-      val r2s = fn r => Real.format (r, Real.Format.fix (SOME 2))
-      val p2s = Int.toCommaString o Int64.toInt
-      fun showOpt opt toString =
-         case opt of
-            NONE => "*"
-          | SOME v => toString v
-   in
-      concat [bench, " (", compilerAbbrev, ") ",
-              "compile: ", showOpt compileTime r2s, "s, ",
-              "run: ", showOpt runTime r2s, "s, ",
-              "size: ", showOpt binarySize p2s]
-   end
+datatype rowType = legacyRow | jsonRow
+
+fun formatResult rowType ({bench, cmd, compilerAbbrev, compileTime, runTime, binarySize} : runResult) =
+   case rowType of
+      legacyRow =>
+         let
+            val r2s = fn r => Real.format (r, Real.Format.fix (SOME 2))
+            val p2s = Int.toCommaString o Int64.toInt
+            fun showOpt opt toString =
+               case opt of
+                  NONE => "*"
+                | SOME v => toString v
+         in
+            concat [bench, " (", compilerAbbrev, ") ",
+                    "compile: ", showOpt compileTime r2s, "s, ",
+                    "run: ", showOpt runTime r2s, "s, ",
+                    "size: ", showOpt binarySize p2s]
+         end
+    | jsonRow =>
+         let
+            fun escapeString s =
+               let
+                  fun loop ([], acc) = List.rev acc
+                    | loop (c::cs, acc) =
+                         if c = #"\"" then loop (cs, #"\"" :: #"\\" :: acc)
+                         else if c = #"\\" then loop (cs, #"\\" :: #"\\" :: acc)
+                         else loop (cs, c :: acc)
+               in
+                  String.implode (loop (String.explode s, []))
+               end
+            fun quote s = concat ["\"", escapeString s, "\""]
+            fun fixTilde s =
+               String.implode (List.map (String.explode s, fn #"~" => #"-" | c => c))
+            fun showRealOpt NONE = "null"
+              | showRealOpt (SOME r) = fixTilde (Real.toString r)
+            fun showInt64Opt NONE = "null"
+              | showInt64Opt (SOME i) = fixTilde (Int64.toString i)
+         in
+            concat [
+               "{\"bench\":", quote bench,
+               ",\"cmd\":", quote cmd,
+               ",\"compilerAbbrev\":", quote compilerAbbrev,
+               ",\"compileTime\":", showRealOpt compileTime,
+               ",\"runTime\":", showRealOpt runTime,
+               ",\"binarySize\":", showInt64Opt binarySize,
+               "}"
+            ]
+         end
+
 
 type 'a data = {bench: string,
                 compiler: string,
