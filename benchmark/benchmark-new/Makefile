@@ -29,7 +29,7 @@ BENCH := barnes-hut boyer checksum count-graphs DLXSimulator even-odd fft fib fl
 FPBENCH := barnes-hut fft hamlet mandelbrot matrix-multiply nucleic ray raytrace simple tensor tsp tyan vliw zern
 
 BFLAGS := -mlton "/usr/bin/mlton" -mlton "mlton -optimize-ssa {false,true}"
-BFLAGS := -wiki -mlton "/usr/bin/mlton"
+BFLAGS := -mlton "/usr/bin/mlton"
 BFLAGS := -mlton "$(BIN)/mlton"
 
 .PHONY: unittest

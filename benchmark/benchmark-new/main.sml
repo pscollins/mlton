@@ -16,7 +16,6 @@ fun usage msg =
                       msg = msg}
 
 val doOnce = ref false
-val doWiki = ref false
 val runArgs : string list ref = ref []
    
 
@@ -96,8 +95,7 @@ fun main (_, args) =
                        SpaceString (fn arg => pushCompilers
                                     (makeMLton arg))),
                       ("once", trueRef doOnce),
-                      trace,
-                      ("wiki", trueRef doWiki)]}
+                      trace]}
       end
    in
       case res of
@@ -120,7 +118,6 @@ fun main (_, args) =
                         {compilers = List.map (compilers, fn {name, abbrv, ...} => {name = name, abbrv = abbrv}),
                          benchmarks = benchmarks,
                          failures = !failures,
-                         doWiki = !doWiki,
                          showAll = showAll,
                          results = results}
                   in

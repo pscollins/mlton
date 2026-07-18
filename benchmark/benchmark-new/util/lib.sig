@@ -103,12 +103,10 @@ sig
    val formatResult: runResult -> string
 
    (* Formats the benchmark execution results into a string.
-    * Optionally generates wiki-formatted output if doWiki is true.
     *)
    val formatResults: {compilers: {name: string, abbrv: string} list,
                        benchmarks: string list,
                        failures: string list,
-                       doWiki: bool,
                        showAll: bool,
                        results: runResult list} -> string
 

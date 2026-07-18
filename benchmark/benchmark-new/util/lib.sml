@@ -202,7 +202,6 @@ type 'a data = {bench: string,
 fun formatResults {compilers,
                    benchmarks,
                    failures,
-                   doWiki,
                    showAll,
                    results: runResult list} =
    let
@@ -246,7 +245,7 @@ fun formatResults {compilers,
       fun r2s n r = Real.format (r, Real.Format.fix (SOME n))
       val i2s = Int.toCommaString
       val p2s = i2s o Int64.toInt
-      fun show (title, data: 'a data, toString, toStringHtml) =
+      fun show (title, data: 'a data, toString) =
          let
             val _ = printConcat [title, "\n"]
             val compilers =
@@ -275,10 +274,10 @@ fun formatResults {compilers,
                            case (List.peek
                                  (data, fn {bench = b',
                                             compiler = c', ...} =>
-                                    b = b' andalso a = c')) of
-                              NONE => "*"
-                            | SOME {value = v, ...} =>
-                                 toString v))))
+                                     b = b' andalso a = c')) of
+                               NONE => "*"
+                             | SOME {value = v, ...} =>
+                                  toString v))))
             val t =
                Justify.table {columnHeads = NONE,
                               justs = (Justify.Left ::
@@ -293,36 +292,6 @@ fun formatResults {compilers,
                                     (print s
                                      ; List.foreach (ss, fn s => (print " "; print s)))
                                     ; print "\n"))
-            val _ =
-               if not doWiki
-                  then ()
-               else
-                  let
-                     val rows = rows toStringHtml
-                     fun prow ns =
-                        case ns of
-                           [] => raise Fail "bug"
-                         | b :: ns =>
-                              (print "||"
-                               ; print b
-                               ; List.foreach (ns, fn n =>
-                                               (print "||"; print n))
-                               ; print "||\n")
-                  in                                       
-                     prow (hd rows)
-                     ; (List.foreach
-                        (tl rows,
-                         fn [] => raise Fail "bug"
-                          | b :: r =>
-                               let
-                                  val b = 
-                                     concat
-                                     ["[attachment:",
-                                      b, ".sml ", b, "]"]
-                               in
-                                  prow (b :: r)
-                               end))
-                  end
          in
             ()
          end
@@ -341,10 +310,10 @@ fun formatResults {compilers,
                               bench = b) of
                  NONE => ~1.0
                | SOME {value = v, ...} => value / v} :: ac)
-      val _ = show ("run time ratio", ratios, r2s 2, r2s 1)
-      val _ = show ("size", sizes, p2s, p2s)
-      val _ = show ("compile time", compiles, r2s 2, r2s 2)
-      val _ = show ("run time", runs, r2s 2, r2s 2)
+      val _ = show ("run time ratio", ratios, r2s 2)
+      val _ = show ("size", sizes, p2s)
+      val _ = show ("compile time", compiles, r2s 2)
+      val _ = show ("run time", runs, r2s 2)
    in
       String.concat (List.rev (!buffer))
    end

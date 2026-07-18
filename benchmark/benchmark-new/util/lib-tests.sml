@@ -29,7 +29,6 @@ val _ = runTest ("Empty results", fn () =>
             compilers = singleCompiler,
             benchmarks = singleBenchmark,
             failures = [],
-            doWiki = false,
             showAll = false,
             results = []
         }
@@ -54,7 +53,6 @@ val _ = runTest ("Empty results with showAll", fn () =>
             compilers = singleCompiler,
             benchmarks = singleBenchmark,
             failures = [],
-            doWiki = false,
             showAll = true,
             results = []
         }
@@ -82,7 +80,6 @@ val _ = runTest ("Failure warning formatting", fn () =>
             compilers = singleCompiler,
             benchmarks = singleBenchmark,
             failures = ["fib", "matrix"],
-            doWiki = false,
             showAll = false,
             results = []
         }
@@ -120,7 +117,6 @@ val _ = runTest ("Full data (showAll = false)", fn () =>
             compilers = compilers,
             benchmarks = benchmarks,
             failures = [],
-            doWiki = false,
             showAll = false,
             results = resultsData
         }
@@ -165,7 +161,6 @@ val _ = runTest ("Missing baseline ratio (~1.00)", fn () =>
             compilers = compilers,
             benchmarks = benchmarks,
             failures = [],
-            doWiki = false,
             showAll = false,
             results = resultsData
         }
@@ -185,87 +180,6 @@ val _ = runTest ("Missing baseline ratio (~1.00)", fn () =>
             "fib       0.20\n"
     in
         assertEqual ("Missing baseline ratio output mismatch", output, expected)
-    end)
-
-(* Test 6: Wiki formatting *)
-val _ = runTest ("Wiki formatting option", fn () =>
-    let
-        val compilers = [
-            {name = "MLton Compiler", abbrv = "MLton"},
-            {name = "GCC Compiler", abbrv = "GCC"}
-        ]
-        val benchmarks = ["fib", "matrix"]
-        
-        val resultsData = [
-            {bench = "fib", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 1.25, runTime = SOME 0.10, binarySize = SOME (Int64.fromInt 1024)},
-            {bench = "fib", cmd = "gcc", compilerAbbrev = "GCC", compileTime = SOME 0.50, runTime = SOME 0.20, binarySize = SOME (Int64.fromInt 512)},
-            {bench = "matrix", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 2.40, runTime = SOME 0.80, binarySize = SOME (Int64.fromInt 2048)}
-        ]
-
-        val output = BenchmarkLib.formatResults {
-            compilers = compilers,
-            benchmarks = benchmarks,
-            failures = [],
-            doWiki = true,
-            showAll = false,
-            results = resultsData
-        }
-
-        (* Standard output from before *)
-        val standardPart =
-            "MLton -- MLton Compiler\n" ^
-            "GCC -- GCC Compiler\n" ^
-            "run time ratio\n" ^
-            "benchmark  GCC\n" ^
-            "fib       2.00\n"
-
-        (* Wiki part for run time ratio.
-           Note: toStringHtml is r2s 1. So value 2.0 is formatted to "2.0".
-         *)
-        val wikiRatio =
-            "||benchmark||GCC||\n" ^
-            "||[attachment:fib.sml fib]||2.0||\n"
-
-        val standardSize =
-            "size\n" ^
-            "benchmark MLton GCC\n" ^
-            "fib       1,024 512\n" ^
-            "matrix    2,048   *\n"
-
-        val wikiSize =
-            "||benchmark||MLton||GCC||\n" ^
-            "||[attachment:fib.sml fib]||1,024||512||\n" ^
-            "||[attachment:matrix.sml matrix]||2,048||*||\n"
-
-        val standardCompile =
-            "compile time\n" ^
-            "benchmark MLton  GCC\n" ^
-            "fib        1.25 0.50\n" ^
-            "matrix     2.40    *\n"
-
-        val wikiCompile =
-            "||benchmark||MLton||GCC||\n" ^
-            "||[attachment:fib.sml fib]||1.25||0.50||\n" ^
-            "||[attachment:matrix.sml matrix]||2.40||*||\n"
-
-        val standardRun =
-            "run time\n" ^
-            "benchmark MLton  GCC\n" ^
-            "fib        0.10 0.20\n" ^
-            "matrix     0.80    *\n"
-
-        val wikiRun =
-            "||benchmark||MLton||GCC||\n" ^
-            "||[attachment:fib.sml fib]||0.10||0.20||\n" ^
-            "||[attachment:matrix.sml matrix]||0.80||*||\n"
-
-        val expected =
-            standardPart ^ wikiRatio ^
-            standardSize ^ wikiSize ^
-            standardCompile ^ wikiCompile ^
-            standardRun ^ wikiRun
-    in
-        assertEqual ("Wiki formatting output mismatch", output, expected)
     end)
 
 (* Test 7: formatResult for a single record *)
