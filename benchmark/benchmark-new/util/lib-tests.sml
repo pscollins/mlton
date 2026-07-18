@@ -108,9 +108,12 @@ val _ = runTest ("Full data (showAll = false)", fn () =>
         val benchmarks = ["fib", "matrix"]
         
         val resultsData = [
-            {bench = "fib", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 1.25, runTime = SOME 0.10, binarySize = SOME (Int64.fromInt 1024)},
-            {bench = "fib", cmd = "gcc", compilerAbbrev = "GCC", compileTime = SOME 0.50, runTime = SOME 0.20, binarySize = SOME (Int64.fromInt 512)},
-            {bench = "matrix", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 2.40, runTime = SOME 0.80, binarySize = SOME (Int64.fromInt 2048)}
+            {bench = "fib", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 1.25, runTime = SOME 0.10, binarySize = SOME (Int64.fromInt 1024),
+             binaryChecksum = SOME "hash1", hostname = "host1", timestamp = "2026-07-18 20:00:00", commitHash = "commit1"},
+            {bench = "fib", cmd = "gcc", compilerAbbrev = "GCC", compileTime = SOME 0.50, runTime = SOME 0.20, binarySize = SOME (Int64.fromInt 512),
+             binaryChecksum = SOME "hash2", hostname = "host2", timestamp = "2026-07-18 20:00:01", commitHash = "commit2"},
+            {bench = "matrix", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 2.40, runTime = SOME 0.80, binarySize = SOME (Int64.fromInt 2048),
+             binaryChecksum = NONE, hostname = "host1", timestamp = "2026-07-18 20:00:02", commitHash = "commit1"}
         ]
 
         val output = BenchmarkLib.formatResults BenchmarkLib.legacyRow {
@@ -154,7 +157,8 @@ val _ = runTest ("Missing baseline ratio (~1.00)", fn () =>
         
         (* Runs has GCC run but NO MLton (base) run for fib *)
         val resultsData = [
-            {bench = "fib", cmd = "gcc", compilerAbbrev = "GCC", compileTime = NONE, runTime = SOME 0.20, binarySize = NONE}
+            {bench = "fib", cmd = "gcc", compilerAbbrev = "GCC", compileTime = NONE, runTime = SOME 0.20, binarySize = NONE,
+             binaryChecksum = NONE, hostname = "host2", timestamp = "2026-07-18 20:00:01", commitHash = "commit2"}
         ]
 
         val output = BenchmarkLib.formatResults BenchmarkLib.legacyRow {
@@ -207,9 +211,12 @@ val _ = runTest ("formatResults full JSON", fn () =>
         val benchmarks = ["fib", "matrix"]
         
         val resultsData = [
-            {bench = "fib", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 1.25, runTime = SOME 0.10, binarySize = SOME (Int64.fromInt 1024)},
-            {bench = "fib", cmd = "gcc", compilerAbbrev = "GCC", compileTime = SOME 0.50, runTime = SOME 0.20, binarySize = SOME (Int64.fromInt 512)},
-            {bench = "matrix", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 2.40, runTime = SOME 0.80, binarySize = SOME (Int64.fromInt 2048)}
+            {bench = "fib", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 1.25, runTime = SOME 0.10, binarySize = SOME (Int64.fromInt 1024),
+             binaryChecksum = SOME "hash1", hostname = "host1", timestamp = "time1", commitHash = "commit1"},
+            {bench = "fib", cmd = "gcc", compilerAbbrev = "GCC", compileTime = SOME 0.50, runTime = SOME 0.20, binarySize = SOME (Int64.fromInt 512),
+             binaryChecksum = SOME "hash2", hostname = "host2", timestamp = "time2", commitHash = "commit2"},
+            {bench = "matrix", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 2.40, runTime = SOME 0.80, binarySize = SOME (Int64.fromInt 2048),
+             binaryChecksum = NONE, hostname = "host1", timestamp = "time3", commitHash = "commit1"}
         ]
 
         val output = BenchmarkLib.formatResults BenchmarkLib.jsonRow {
@@ -221,9 +228,9 @@ val _ = runTest ("formatResults full JSON", fn () =>
         }
 
         val expected =
-            "{\"bench\":\"fib\",\"cmd\":\"mlton\",\"compilerAbbrev\":\"MLton\",\"compileTime\":1.25,\"runTime\":0.1,\"binarySize\":1024}\n" ^
-            "{\"bench\":\"fib\",\"cmd\":\"gcc\",\"compilerAbbrev\":\"GCC\",\"compileTime\":0.5,\"runTime\":0.2,\"binarySize\":512}\n" ^
-            "{\"bench\":\"matrix\",\"cmd\":\"mlton\",\"compilerAbbrev\":\"MLton\",\"compileTime\":2.4,\"runTime\":0.8,\"binarySize\":2048}\n"
+            "{\"bench\":\"fib\",\"cmd\":\"mlton\",\"compilerAbbrev\":\"MLton\",\"compileTime\":0.125E1,\"runTime\":0.1,\"binarySize\":1024,\"binaryChecksum\":\"hash1\",\"hostname\":\"host1\",\"timestamp\":\"time1\",\"commitHash\":\"commit1\"}\n" ^
+            "{\"bench\":\"fib\",\"cmd\":\"gcc\",\"compilerAbbrev\":\"GCC\",\"compileTime\":0.5,\"runTime\":0.2,\"binarySize\":512,\"binaryChecksum\":\"hash2\",\"hostname\":\"host2\",\"timestamp\":\"time2\",\"commitHash\":\"commit2\"}\n" ^
+            "{\"bench\":\"matrix\",\"cmd\":\"mlton\",\"compilerAbbrev\":\"MLton\",\"compileTime\":0.24E1,\"runTime\":0.8,\"binarySize\":2048,\"binaryChecksum\":null,\"hostname\":\"host1\",\"timestamp\":\"time3\",\"commitHash\":\"commit1\"}\n"
     in
         assertEqual ("JSON output mismatch", output, expected)
     end)
@@ -231,7 +238,8 @@ val _ = runTest ("formatResults full JSON", fn () =>
 (* Test 7a: formatResult for a single record (legacy) *)
 val _ = runTest ("formatResult formatting (legacy)", fn () =>
     let
-        val res = {bench = "fib", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 1.25, runTime = SOME 0.10, binarySize = SOME (Int64.fromInt 1024)}
+        val res = {bench = "fib", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 1.25, runTime = SOME 0.10, binarySize = SOME (Int64.fromInt 1024),
+                   binaryChecksum = SOME "hash1", hostname = "host1", timestamp = "time1", commitHash = "commit1"}
         val output = BenchmarkLib.formatResult BenchmarkLib.legacyRow res
         val expected = "fib (MLton) compile: 1.25s, run: 0.10s, size: 1,024"
     in
@@ -241,9 +249,10 @@ val _ = runTest ("formatResult formatting (legacy)", fn () =>
 (* Test 7b: formatResult for a single record (json) *)
 val _ = runTest ("formatResult formatting (json)", fn () =>
     let
-        val res = {bench = "fib", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 1.25, runTime = SOME 0.10, binarySize = SOME (Int64.fromInt 1024)}
+        val res = {bench = "fib", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 1.25, runTime = SOME 0.10, binarySize = SOME (Int64.fromInt 1024),
+                   binaryChecksum = SOME "hash1", hostname = "host1", timestamp = "time1", commitHash = "commit1"}
         val output = BenchmarkLib.formatResult BenchmarkLib.jsonRow res
-        val expected = "{\"bench\":\"fib\",\"cmd\":\"mlton\",\"compilerAbbrev\":\"MLton\",\"compileTime\":1.25,\"runTime\":0.1,\"binarySize\":1024}"
+        val expected = "{\"bench\":\"fib\",\"cmd\":\"mlton\",\"compilerAbbrev\":\"MLton\",\"compileTime\":0.125E1,\"runTime\":0.1,\"binarySize\":1024,\"binaryChecksum\":\"hash1\",\"hostname\":\"host1\",\"timestamp\":\"time1\",\"commitHash\":\"commit1\"}"
     in
         assertEqual ("formatResult json mismatch", output, expected)
     end)
@@ -251,7 +260,8 @@ val _ = runTest ("formatResult formatting (json)", fn () =>
 (* Test 8a: formatResult formatting with NONE (legacy) *)
 val _ = runTest ("formatResult formatting with NONE (legacy)", fn () =>
     let
-        val res = {bench = "matrix", cmd = "gcc", compilerAbbrev = "GCC", compileTime = NONE, runTime = NONE, binarySize = NONE}
+        val res = {bench = "matrix", cmd = "gcc", compilerAbbrev = "GCC", compileTime = NONE, runTime = NONE, binarySize = NONE,
+                   binaryChecksum = NONE, hostname = "host1", timestamp = "time1", commitHash = "commit1"}
         val output = BenchmarkLib.formatResult BenchmarkLib.legacyRow res
         val expected = "matrix (GCC) compile: *s, run: *s, size: *"
     in
@@ -261,9 +271,10 @@ val _ = runTest ("formatResult formatting with NONE (legacy)", fn () =>
 (* Test 8b: formatResult formatting with NONE (json) *)
 val _ = runTest ("formatResult formatting with NONE (json)", fn () =>
     let
-        val res = {bench = "matrix", cmd = "gcc", compilerAbbrev = "GCC", compileTime = NONE, runTime = NONE, binarySize = NONE}
+        val res = {bench = "matrix", cmd = "gcc", compilerAbbrev = "GCC", compileTime = NONE, runTime = NONE, binarySize = NONE,
+                   binaryChecksum = NONE, hostname = "host1", timestamp = "time1", commitHash = "commit1"}
         val output = BenchmarkLib.formatResult BenchmarkLib.jsonRow res
-        val expected = "{\"bench\":\"matrix\",\"cmd\":\"gcc\",\"compilerAbbrev\":\"GCC\",\"compileTime\":null,\"runTime\":null,\"binarySize\":null}"
+        val expected = "{\"bench\":\"matrix\",\"cmd\":\"gcc\",\"compilerAbbrev\":\"GCC\",\"compileTime\":null,\"runTime\":null,\"binarySize\":null,\"binaryChecksum\":null,\"hostname\":\"host1\",\"timestamp\":\"time1\",\"commitHash\":\"commit1\"}"
     in
         assertEqual ("formatResult json with NONE mismatch", output, expected)
     end)
@@ -271,9 +282,10 @@ val _ = runTest ("formatResult formatting with NONE (json)", fn () =>
 (* Test 8c: formatResult formatting with escape characters (json) *)
 val _ = runTest ("formatResult formatting with escape characters (json)", fn () =>
     let
-        val res = {bench = "hello\"world\\", cmd = "run \"me\"", compilerAbbrev = "AB\"C", compileTime = SOME 0.05, runTime = SOME 0.15, binarySize = SOME (Int64.fromInt 256)}
+        val res = {bench = "hello\"world\\", cmd = "run \"me\"", compilerAbbrev = "AB\"C", compileTime = SOME 0.05, runTime = SOME 0.15, binarySize = SOME (Int64.fromInt 256),
+                   binaryChecksum = SOME "hash\"1", hostname = "host\"1", timestamp = "time\"1", commitHash = "commit\"1"}
         val output = BenchmarkLib.formatResult BenchmarkLib.jsonRow res
-        val expected = "{\"bench\":\"hello\\\"world\\\\\",\"cmd\":\"run \\\"me\\\"\",\"compilerAbbrev\":\"AB\\\"C\",\"compileTime\":0.05,\"runTime\":0.15,\"binarySize\":256}"
+        val expected = "{\"bench\":\"hello\\\"world\\\\\",\"cmd\":\"run \\\"me\\\"\",\"compilerAbbrev\":\"AB\\\"C\",\"compileTime\":0.5E-1,\"runTime\":0.15,\"binarySize\":256,\"binaryChecksum\":\"hash\\\"1\",\"hostname\":\"host\\\"1\",\"timestamp\":\"time\\\"1\",\"commitHash\":\"commit\\\"1\"}"
     in
         assertEqual ("formatResult json escape mismatch", output, expected)
     end)
@@ -367,7 +379,8 @@ val _ = runTest ("maybeWriteToFile with NONE", fn () =>
     let
         val testFile = "test_none.json"
         val _ = if File.doesExist testFile then File.remove testFile else ()
-        val results = [{bench = "fib", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 1.25, runTime = SOME 0.10, binarySize = SOME (Int64.fromInt 1024)}]
+        val results = [{bench = "fib", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 1.25, runTime = SOME 0.10, binarySize = SOME (Int64.fromInt 1024),
+                        binaryChecksum = SOME "hash1", hostname = "host1", timestamp = "time1", commitHash = "commit1"}]
         val _ = BenchmarkLib.maybeWriteToFile (NONE, results)
         val exists = File.doesExist testFile
     in
@@ -393,12 +406,13 @@ val _ = runTest ("maybeWriteToFile with SOME path and non-empty results", fn () 
     let
         val testFile = "test_results.json"
         val _ = if File.doesExist testFile then File.remove testFile else ()
-        val results = [{bench = "fib", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 1.25, runTime = SOME 0.10, binarySize = SOME (Int64.fromInt 1024)}]
+        val results = [{bench = "fib", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 1.25, runTime = SOME 0.10, binarySize = SOME (Int64.fromInt 1024),
+                        binaryChecksum = SOME "hash1", hostname = "host1", timestamp = "time1", commitHash = "commit1"}]
         val _ = BenchmarkLib.maybeWriteToFile (SOME testFile, results)
         val exists = File.doesExist testFile
         val _ = assert ("File should exist", exists)
         val content = File.contents testFile
-        val expected = "{\"bench\":\"fib\",\"cmd\":\"mlton\",\"compilerAbbrev\":\"MLton\",\"compileTime\":1.25,\"runTime\":0.1,\"binarySize\":1024}\n"
+        val expected = "{\"bench\":\"fib\",\"cmd\":\"mlton\",\"compilerAbbrev\":\"MLton\",\"compileTime\":0.125E1,\"runTime\":0.1,\"binarySize\":1024,\"binaryChecksum\":\"hash1\",\"hostname\":\"host1\",\"timestamp\":\"time1\",\"commitHash\":\"commit1\"}\n"
         val _ = File.remove testFile
     in
         assertEqual ("File content should match", content, expected)

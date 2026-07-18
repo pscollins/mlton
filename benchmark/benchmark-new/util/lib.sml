@@ -19,7 +19,11 @@ type runResult = {
    compilerAbbrev: string,
    compileTime: real option,
    runTime: real option,
-   binarySize: Int64.t option
+   binarySize: Int64.t option,
+   binaryChecksum: string option,
+   hostname: string,
+   timestamp: string,
+   commitHash: string
 }
 
 fun ignoreOutput f =
@@ -142,6 +146,36 @@ fun batch_ {abbrv, bench} =
 fun batch ab =
   concat [batch_ ab, ".sml"]
 
+fun trim s =
+   let
+      val n = String.size s
+      fun findLeft i =
+         if i = n then n
+         else if Char.isSpace (String.sub (s, i)) then findLeft (i + 1)
+         else i
+      fun findRight i =
+         if i < 0 then 0
+         else if Char.isSpace (String.sub (s, i)) then findRight (i - 1)
+         else i + 1
+      val l = findLeft 0
+      val r = findRight (n - 1)
+   in
+      if l >= r then ""
+      else String.substring (s, l, r - l)
+   end
+
+fun getBinaryChecksum (exe: string): string option =
+   let
+      val out = trim (Process.executeWithIn ("/usr/bin/md5sum", [exe], In.inputAll) handle _ => "")
+      val out = if out = "" then trim (Process.executeWithIn ("/bin/md5sum", [exe], In.inputAll) handle _ => "") else out
+      val out = if out = "" then trim (Process.executeWithIn ("/usr/bin/md5", ["-q", exe], In.inputAll) handle _ => "") else out
+      val out = if out = "" then trim (Process.executeWithIn ("/bin/md5", ["-q", exe], In.inputAll) handle _ => "") else out
+   in
+      case String.tokens (out, Char.isSpace) of
+         hash :: _ => SOME hash
+       | _ => NONE
+   end
+
 fun runTest {bench: string,
              config: {cmd: string,
                       abbrv: string,
@@ -165,13 +199,39 @@ fun runTest {bench: string,
                             doTextPlusData = true,
                             runArgs = runArgs,
                             doOnce = doOnce})
+      val binarySize = Option.map (#size res, Int64.fromInt o Position.toInt)
+      val binaryChecksum =
+         if Option.isSome binarySize
+            then getBinaryChecksum exe
+         else NONE
+      val host =
+         let
+            val h = trim (Process.executeWithIn ("/bin/hostname", [], In.inputAll) handle _ => "")
+            val h = if h = "" then trim (Process.executeWithIn ("hostname", [], In.inputAll) handle _ => "") else h
+            val h = if h = "" then trim (Process.executeWithIn ("/usr/bin/uname", ["-n"], In.inputAll) handle _ => "") else h
+            val h = if h = "" then trim (Process.executeWithIn ("uname", ["-n"], In.inputAll) handle _ => "") else h
+         in
+            if h = "" then "unknown" else h
+         end
+      val ts = Date.fmt (Date.fromTimeLocal (Time.now ()), "%Y-%m-%d %H:%M:%S")
+      val commit =
+         let
+            val h = trim (Process.executeWithIn ("/usr/bin/git", ["rev-parse", "HEAD"], In.inputAll) handle _ => "")
+            val h = if h = "" then trim (Process.executeWithIn ("/bin/git", ["rev-parse", "HEAD"], In.inputAll) handle _ => "") else h
+         in
+            if h = "" then "unknown" else h
+         end
    in
       {bench = bench,
        cmd = #cmd config,
        compilerAbbrev = #abbrv config,
        compileTime = #compile res,
        runTime = #run res,
-       binarySize = Option.map (#size res, Int64.fromInt o Position.toInt)}
+       binarySize = binarySize,
+       binaryChecksum = binaryChecksum,
+       hostname = host,
+       timestamp = ts,
+       commitHash = commit}
    end
 
 type result = {bench: string,
@@ -182,7 +242,8 @@ type result = {bench: string,
 
 datatype rowType = legacyRow | jsonRow
 
-fun formatResult rowType ({bench, cmd, compilerAbbrev, compileTime, runTime, binarySize} : runResult) =
+fun formatResult rowType ({bench, cmd, compilerAbbrev, compileTime, runTime, binarySize,
+                          binaryChecksum, hostname, timestamp, commitHash} : runResult) =
    case rowType of
       legacyRow =>
          let
@@ -214,9 +275,11 @@ fun formatResult rowType ({bench, cmd, compilerAbbrev, compileTime, runTime, bin
             fun fixTilde s =
                String.implode (List.map (String.explode s, fn #"~" => #"-" | c => c))
             fun showRealOpt NONE = "null"
-              | showRealOpt (SOME r) = fixTilde (Real.toString r)
+              | showRealOpt (SOME r) = fixTilde (Real.format (r, Real.Format.exact))
             fun showInt64Opt NONE = "null"
               | showInt64Opt (SOME i) = fixTilde (Int64.toString i)
+            fun showStringOpt NONE = "null"
+              | showStringOpt (SOME s) = quote s
          in
             concat [
                "{\"bench\":", quote bench,
@@ -225,6 +288,10 @@ fun formatResult rowType ({bench, cmd, compilerAbbrev, compileTime, runTime, bin
                ",\"compileTime\":", showRealOpt compileTime,
                ",\"runTime\":", showRealOpt runTime,
                ",\"binarySize\":", showInt64Opt binarySize,
+               ",\"binaryChecksum\":", showStringOpt binaryChecksum,
+               ",\"hostname\":", quote hostname,
+               ",\"timestamp\":", quote timestamp,
+               ",\"commitHash\":", quote commitHash,
                "}"
             ]
          end

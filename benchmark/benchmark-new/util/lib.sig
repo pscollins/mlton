@@ -76,7 +76,15 @@ sig
       (* run duration (in seconds), or NONE for failure *)
       runTime: real option,
       (* binary size (in bytes), or NONE for failure *)
-      binarySize: Int64.t option
+      binarySize: Int64.t option,
+      (* MD5 hash of the generated executable *)
+      binaryChecksum: string option,
+      (* Hostname that this benchmark was executed on *)
+      hostname: string,
+      (* Time when this benchmark was executed *)
+      timestamp: string,
+      (* Git commit hash when this benchmark was compiled *)
+      commitHash: string
    }
 
    (* Runs a complete benchmark test: writes the driver SML batch file (which
