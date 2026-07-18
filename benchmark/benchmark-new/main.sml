@@ -57,9 +57,7 @@ fun main (_, args) =
       val compilers: {name: string,
                        abbrv: string,
                        main: string -> string,
-                       test: {bench: File.t} -> {compile: real option,
-                                                 run: real option,
-                                                 size: Position.int option}} list ref 
+                       test: {bench: File.t} -> BenchmarkLib.runResult} list ref 
         = ref []
 
       fun pushCompilers compilers' = compilers := (List.rev compilers') @ (!compilers)
@@ -138,33 +136,28 @@ fun main (_, args) =
                       val foundOne = ref false
                       val res =
                          List.fold
-                         (compilers, ac, fn ({name, abbrv, test, ...}, ac) =>
+                         (compilers, ac, fn ({name, test, ...}, ac) =>
                           if true
                              then
                                 let
-                                   val {compile, run, size} = test {bench = bench}
+                                   val r as {compileTime, runTime, binarySize, ...} = test {bench = bench}
                                    val _ =
                                       if name = base
-                                         andalso Option.isNone run
+                                         andalso Option.isNone runTime
                                          then List.push (failures, bench)
                                       else ()
                                    val _ =
-                                      if Option.isSome compile
-                                         orelse Option.isSome run
-                                         orelse Option.isSome size
+                                      if Option.isSome compileTime
+                                         orelse Option.isSome runTime
+                                         orelse Option.isSome binarySize
                                          then foundOne := true
                                       else ()
-                                   val ac =
-                                      {bench = bench,
-                                       compiler = abbrv,
-                                       compile = compile,
-                                       run = run,
-                                       size = size} :: ac
+                                   val ac = r :: ac
                                    val _ = show (ac, {showAll = false})
                                    val _ = Out.flush Out.standard
-                                in
-                                   ac
-                                end
+                                 in
+                                    ac
+                                 end
                           else ac)
                       val _ =
                          if !foundOne

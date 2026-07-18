@@ -1,4 +1,5 @@
 local
+   $(SML_LIB)/basis/basis.mlb
    ../../../lib/mlton/sources.mlb
    lib.sig
    lib.sml

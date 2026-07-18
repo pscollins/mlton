@@ -111,9 +111,9 @@ val _ = runTest ("Full data (showAll = false)", fn () =>
         val benchmarks = ["fib", "matrix"]
         
         val resultsData = [
-            {bench = "fib", compiler = "MLton", compile = SOME 1.25, run = SOME 0.10, size = SOME (Position.fromInt 1024)},
-            {bench = "fib", compiler = "GCC", compile = SOME 0.50, run = SOME 0.20, size = SOME (Position.fromInt 512)},
-            {bench = "matrix", compiler = "MLton", compile = SOME 2.40, run = SOME 0.80, size = SOME (Position.fromInt 2048)}
+            {bench = "fib", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 1.25, runTime = SOME 0.10, binarySize = SOME (Int64.fromInt 1024)},
+            {bench = "fib", cmd = "gcc", compilerAbbrev = "GCC", compileTime = SOME 0.50, runTime = SOME 0.20, binarySize = SOME (Int64.fromInt 512)},
+            {bench = "matrix", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 2.40, runTime = SOME 0.80, binarySize = SOME (Int64.fromInt 2048)}
         ]
 
         val output = BenchmarkLib.formatResults {
@@ -158,7 +158,7 @@ val _ = runTest ("Missing baseline ratio (~1.00)", fn () =>
         
         (* Runs has GCC run but NO MLton (base) run for fib *)
         val resultsData = [
-            {bench = "fib", compiler = "GCC", compile = NONE, run = SOME 0.20, size = NONE}
+            {bench = "fib", cmd = "gcc", compilerAbbrev = "GCC", compileTime = NONE, runTime = SOME 0.20, binarySize = NONE}
         ]
 
         val output = BenchmarkLib.formatResults {
@@ -197,9 +197,9 @@ val _ = runTest ("Wiki formatting option", fn () =>
         val benchmarks = ["fib", "matrix"]
         
         val resultsData = [
-            {bench = "fib", compiler = "MLton", compile = SOME 1.25, run = SOME 0.10, size = SOME (Position.fromInt 1024)},
-            {bench = "fib", compiler = "GCC", compile = SOME 0.50, run = SOME 0.20, size = SOME (Position.fromInt 512)},
-            {bench = "matrix", compiler = "MLton", compile = SOME 2.40, run = SOME 0.80, size = SOME (Position.fromInt 2048)}
+            {bench = "fib", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 1.25, runTime = SOME 0.10, binarySize = SOME (Int64.fromInt 1024)},
+            {bench = "fib", cmd = "gcc", compilerAbbrev = "GCC", compileTime = SOME 0.50, runTime = SOME 0.20, binarySize = SOME (Int64.fromInt 512)},
+            {bench = "matrix", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 2.40, runTime = SOME 0.80, binarySize = SOME (Int64.fromInt 2048)}
         ]
 
         val output = BenchmarkLib.formatResults {
@@ -271,7 +271,7 @@ val _ = runTest ("Wiki formatting option", fn () =>
 (* Test 7: formatResult for a single record *)
 val _ = runTest ("formatResult formatting", fn () =>
     let
-        val res = {bench = "fib", compiler = "MLton", compile = SOME 1.25, run = SOME 0.10, size = SOME (Position.fromInt 1024)}
+        val res = {bench = "fib", cmd = "mlton", compilerAbbrev = "MLton", compileTime = SOME 1.25, runTime = SOME 0.10, binarySize = SOME (Int64.fromInt 1024)}
         val output = BenchmarkLib.formatResult res
         val expected = "fib (MLton) compile: 1.25s, run: 0.10s, size: 1,024"
     in
@@ -281,7 +281,7 @@ val _ = runTest ("formatResult formatting", fn () =>
 (* Test 8: formatResult formatting with NONE *)
 val _ = runTest ("formatResult formatting with NONE", fn () =>
     let
-        val res = {bench = "matrix", compiler = "GCC", compile = NONE, run = NONE, size = NONE}
+        val res = {bench = "matrix", cmd = "gcc", compilerAbbrev = "GCC", compileTime = NONE, runTime = NONE, binarySize = NONE}
         val output = BenchmarkLib.formatResult res
         val expected = "matrix (GCC) compile: *s, run: *s, size: *"
     in

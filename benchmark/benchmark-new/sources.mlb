@@ -6,6 +6,7 @@
  *)
 
 local
+   $(SML_LIB)/basis/basis.mlb
    ../../lib/mlton/sources.mlb
    util/lib.sig
    util/lib.sml

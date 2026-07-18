@@ -13,6 +13,15 @@ struct
 
 type int = Int.t
 
+type runResult = {
+   bench: string,
+   cmd: string,
+   compilerAbbrev: string,
+   compileTime: real option,
+   runTime: real option,
+   binarySize: Int64.t option
+}
+
 fun ignoreOutput f =
    let
       val nullFd =
@@ -138,9 +147,7 @@ fun runTest {bench: string,
                       abbrv: string,
                       main: string -> string},
              runArgs: string list,
-             doOnce: bool} : {compile: real option,
-                              run: real option,
-                              size: Position.int option} =
+             doOnce: bool} : runResult =
    let
       val src = batch {abbrv = #abbrv config, bench = bench}
       val exe = String.dropSuffix (src, 4)
@@ -151,13 +158,20 @@ fun runTest {bench: string,
          (src, fn out =>
           (File.outputContents (concat [bench, ".sml"], out);
            Out.output (out, (#main config bench))))
+      val res =
+         ignoreOutput (fn () =>
+            compileSizeRun {command = Shell cmds,
+                            exe = exe,
+                            doTextPlusData = true,
+                            runArgs = runArgs,
+                            doOnce = doOnce})
    in
-      ignoreOutput (fn () =>
-         compileSizeRun {command = Shell cmds,
-                         exe = exe,
-                         doTextPlusData = true,
-                         runArgs = runArgs,
-                         doOnce = doOnce})
+      {bench = bench,
+       cmd = #cmd config,
+       compilerAbbrev = #abbrv config,
+       compileTime = #compile res,
+       runTime = #run res,
+       binarySize = Option.map (#size res, Int64.fromInt o Position.toInt)}
    end
 
 type result = {bench: string,
@@ -166,19 +180,19 @@ type result = {bench: string,
                run: real option,
                size: Position.int option}
 
-fun formatResult {bench, compiler, compile, run, size} =
+fun formatResult ({bench, cmd = _, compilerAbbrev, compileTime, runTime, binarySize} : runResult) =
    let
       val r2s = fn r => Real.format (r, Real.Format.fix (SOME 2))
-      val p2s = Int.toCommaString o Position.toInt
+      val p2s = Int.toCommaString o Int64.toInt
       fun showOpt opt toString =
          case opt of
             NONE => "*"
           | SOME v => toString v
    in
-      concat [bench, " (", compiler, ") ",
-              "compile: ", showOpt compile r2s, "s, ",
-              "run: ", showOpt run r2s, "s, ",
-              "size: ", showOpt size p2s]
+      concat [bench, " (", compilerAbbrev, ") ",
+              "compile: ", showOpt compileTime r2s, "s, ",
+              "run: ", showOpt runTime r2s, "s, ",
+              "size: ", showOpt binarySize p2s]
    end
 
 type 'a data = {bench: string,
@@ -190,26 +204,26 @@ fun formatResults {compilers,
                    failures,
                    doWiki,
                    showAll,
-                   results: result list} =
+                   results: runResult list} =
    let
       val compiles =
          List.rev
-         (List.fold (results, [], fn ({bench, compiler, compile, ...}, ac) =>
-                     case compile of
+         (List.fold (results, [], fn ({bench, compilerAbbrev, compileTime, ...}: runResult, ac) =>
+                     case compileTime of
                         NONE => ac
-                      | SOME v => {bench = bench, compiler = compiler, value = v} :: ac))
+                      | SOME v => {bench = bench, compiler = compilerAbbrev, value = v} :: ac))
       val runs =
          List.rev
-         (List.fold (results, [], fn ({bench, compiler, run, ...}, ac) =>
-                     case run of
+         (List.fold (results, [], fn ({bench, compilerAbbrev, runTime, ...}: runResult, ac) =>
+                     case runTime of
                         NONE => ac
-                      | SOME v => {bench = bench, compiler = compiler, value = v} :: ac))
+                      | SOME v => {bench = bench, compiler = compilerAbbrev, value = v} :: ac))
       val sizes =
          List.rev
-         (List.fold (results, [], fn ({bench, compiler, size, ...}, ac) =>
-                     case size of
+         (List.fold (results, [], fn ({bench, compilerAbbrev, binarySize, ...}: runResult, ac) =>
+                     case binarySize of
                         NONE => ac
-                      | SOME v => {bench = bench, compiler = compiler, value = v} :: ac))
+                      | SOME v => {bench = bench, compiler = compilerAbbrev, value = v} :: ac))
 
       val buffer = ref []
       fun print s = buffer := s :: !buffer
@@ -231,7 +245,7 @@ fun formatResults {compilers,
                          "\n"]
       fun r2s n r = Real.format (r, Real.Format.fix (SOME n))
       val i2s = Int.toCommaString
-      val p2s = i2s o Position.toInt
+      val p2s = i2s o Int64.toInt
       fun show (title, data: 'a data, toString, toStringHtml) =
          let
             val _ = printConcat [title, "\n"]

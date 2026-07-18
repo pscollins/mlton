@@ -8,6 +8,12 @@
  * See the file MLton-LICENSE for details.
  *)
 
+structure Int64 =
+struct
+   open Int64
+   type t = int
+end
+
 signature BENCHMARK_LIB =
 sig
 
@@ -58,6 +64,21 @@ sig
     *)
    val batch: {abbrv: string, bench: string} -> string
 
+   type runResult = {
+      (* benchmark name *)
+      bench: string,
+      (* commandline to run the compiler *)
+      cmd: string,
+      (* nickname for the compiler *)
+      compilerAbbrev: string,
+      (* compile duration (in seconds), or NONE for failure *)
+      compileTime: real option,
+      (* run duration (in seconds), or NONE for failure *)
+      runTime: real option,
+      (* binary size (in bytes), or NONE for failure *)
+      binarySize: Int64.t option
+   }
+
    (* Runs a complete benchmark test: writes the driver SML batch file (which
     * merges the original benchmark source and the main driver loop code),
     * compiles it, determines sizes, and measures execution time.
@@ -69,9 +90,7 @@ sig
                           abbrv: string,
                           main: string -> string},
                  runArgs: string list,
-                 doOnce: bool} -> {compile: real option,
-                                   run: real option,
-                                   size: Position.int option}
+                 doOnce: bool} -> runResult
 
    type result = {bench: string,
                   compiler: string,
@@ -79,13 +98,9 @@ sig
                   run: real option,
                   size: Position.int option}
 
-   type 'a data = {bench: string,
-                   compiler: string,
-                   value: 'a} list
-
    (* Formats a single benchmark run result into a string.
     *)
-   val formatResult: result -> string
+   val formatResult: runResult -> string
 
    (* Formats the benchmark execution results into a string.
     * Optionally generates wiki-formatted output if doWiki is true.
@@ -95,7 +110,7 @@ sig
                        failures: string list,
                        doWiki: bool,
                        showAll: bool,
-                       results: result list} -> string
+                       results: runResult list} -> string
 
    (* Prints the formatted results string to the appropriate stream (stdout) and flushes.
     *)
