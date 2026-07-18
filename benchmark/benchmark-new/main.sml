@@ -92,6 +92,8 @@ fun main (_, args) =
                       SpaceString
                       (fn args =>
                        runArgs := String.tokens (args, Char.isSpace))),
+                      ("max-bench-count",
+                       Int (fn n => BenchmarkLib.maxBenchCount := SOME n)),
                       ("mlton",
                        SpaceString (fn arg => pushCompilers
                                     (makeMLton arg))),

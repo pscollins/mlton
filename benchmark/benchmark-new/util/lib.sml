@@ -345,6 +345,7 @@ val benchCounts: (string * int) list =
    ("checksum", 12288):: (* 42.48 sec *)
    ("count-graphs", 12):: (* 30.27 sec *)
    ("DLXSimulator", 6):: (* 31.83 sec *)
+   ("empty", 1)::
    ("even-odd", 24):: (* 38.96 sec *)
    ("fft", 16):: (* 39.63 sec *)
    ("fib", 32):: (* 40.10 sec *)
