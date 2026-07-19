@@ -47,7 +47,7 @@ SHARED_FLAGS='-link-opt -s'
 MLTON0="../../build/bin/mlton"
 MLTON0_FLAGS="${SHARED_FLAGS}"
 MLTON1="../../build/bin/mlton"
-MLTON1_FLAGS='${SHARED_FLAGS} -pre-flatten-max-iters 1 -pre-flatten-consumer-policy always -pre-flatten-resolve-policy local -pre-flatten-types-policy tuple -pre-flatten-recursive-steps 10 -pre-flatten-phase late -pre-flatten-transfer-policy tail_only'
+MLTON1_FLAGS="${SHARED_FLAGS} -pre-flatten-max-iters 1 -pre-flatten-consumer-policy always -pre-flatten-resolve-policy local -pre-flatten-types-policy tuple -pre-flatten-recursive-steps 10 -pre-flatten-phase late -pre-flatten-transfer-policy tail_only"
 
 # Same set of tests as BENCH in benchmark/Makefile
 BENCHMARKS=(
