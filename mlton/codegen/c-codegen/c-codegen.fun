@@ -745,16 +745,19 @@ fun outputDeclarations
                   Control.Align4 => 4
                 | Control.Align8 => 8
             val magic =
-               let
-                  val version = String.hash Version.version
-                  val random = Random.word ()
-                  val magic =
-                     Word.orb
-                     (Word.<< (version, Word.fromInt (Word.wordSize - 8)),
-                      Word.>> (random, Word.fromInt 8))
-               in
-                  WordX.fromWord (magic, WordSize.word32)
-               end
+               case !Control.buildMagic of
+                  SOME w => WordX.fromWord (w, WordSize.word32)
+                | NONE =>
+                     let
+                        val version = String.hash Version.version
+                        val random = Random.word ()
+                        val magic =
+                           Word.orb
+                           (Word.<< (version, Word.fromInt (Word.wordSize - 8)),
+                            Word.>> (random, Word.fromInt 8))
+                     in
+                        WordX.fromWord (magic, WordSize.word32)
+                     end
             val profile =
                case !Control.profile of
                   Control.ProfileNone => "PROFILE_NONE"

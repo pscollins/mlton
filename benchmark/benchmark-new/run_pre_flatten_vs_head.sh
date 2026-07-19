@@ -41,9 +41,10 @@ cd "${TESTS_DIR}"
 
 # Compilers + build flags under test (same as benchmark/run_pre_flatten_vs_head.sh)
 #
-# Stripping debug symbols is required to get identical checksums (otherwise the
-# C filenames, which are nondeterministic, are embedded in the binady)
-SHARED_FLAGS='-link-opt -s' 
+# Stripping debug symbols and setting a deterministic magic number are required
+# to get identical checksums (otherwise the nondeterministic C filenames and
+# compiler-random magic numbers are embedded in the binary)
+SHARED_FLAGS='-link-opt -s -build-magic 0' 
 MLTON0="../../build/bin/mlton"
 MLTON0_FLAGS="${SHARED_FLAGS}"
 MLTON1="../../build/bin/mlton"

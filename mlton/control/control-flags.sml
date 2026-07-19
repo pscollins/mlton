@@ -106,6 +106,10 @@ val align = control {name = "align",
                      default = Align4,
                      toString = Align.toString}
 
+val buildMagic = control {name = "buildMagic",
+                          default = NONE,
+                          toString = Option.toString Word.toString}
+
 val atMLtons = control {name = "atMLtons",
                         default = Vector.new0 (),
                         toString = fn v => Layout.toString (Vector.layout

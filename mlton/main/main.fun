@@ -265,6 +265,8 @@ fun makeOptions {usage} =
        (Expert, "bounce-rssa-usage-cutoff", "<n>",
         "Maximum variable use count to consider",
         Int (fn i => bounceRssaUsageCutoff := (if i < 0 then NONE else SOME i))),
+       (Normal, "build-magic", " <w>", "override executable magic number",
+        Word (fn w => buildMagic := SOME w)),
        (Normal, "cc", " <cc>", "executable for C compiler",
         SpaceString
         (fn s => cc := String.tokens (s, Char.isSpace))),

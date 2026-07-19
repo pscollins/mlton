@@ -34,6 +34,8 @@ signature CONTROL_FLAGS =
       datatype align = Align4 | Align8
       val align: align ref
 
+      val buildMagic: word option ref
+
       val atMLtons: string vector ref
 
       val bounceRssaLimit: int option ref
