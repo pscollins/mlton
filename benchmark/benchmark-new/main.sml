@@ -161,7 +161,10 @@ fun main (_, args) =
                                          then foundOne := true
                                       else ()
                                    val ac = r :: ac
-                                   val _ = if !outputJson then () else show (ac, {showAll = false})
+                                   val _ =
+                                      if !outputJson
+                                         then BenchmarkLib.writeResults (concat [BenchmarkLib.formatResult BenchmarkLib.jsonRow r, "\n"])
+                                      else show (ac, {showAll = false})
                                    val _ = Out.flush Out.standard
                                  in
                                     ac
@@ -174,7 +177,7 @@ fun main (_, args) =
                    in
                       res
                    end)
-               val _ = show (data, {showAll = true})
+               val _ = if !outputJson then () else show (data, {showAll = true})
                val _ = Out.flush Out.standard
                val _ = BenchmarkLib.maybeWriteToFile (!outfile, List.rev data)
                val totalFailures = !totalFailures
