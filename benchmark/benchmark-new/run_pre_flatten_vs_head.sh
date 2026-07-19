@@ -62,6 +62,7 @@ echo "Running benchmarks and saving output to: ${OUTFILE}"
 
 # Execute benchmark with the specified output file and configurations
 ../benchmark-new/benchmark \
+  -json \
   -outfile "${OUTFILE}" \
   -mlton "${MLTON0} ${MLTON0_FLAGS}" \
   -mlton "${MLTON1} ${MLTON1_FLAGS}" \
