@@ -1,0 +1,10 @@
+../../lib/mlton/sources.mlb
+../control/sources.mlb
+local
+   ../atoms/sources.mlb
+   sources.mlb
+   test-util.sml
+   shallow-flatten-test-common.sml
+   shallow-flatten-test-8.sml
+in
+end

@@ -405,10 +405,19 @@ signature CONTROL_FLAGS =
       structure ShallowFlattenPolicy:
          sig
             datatype t = MaxWidth of int
+                       | MaxWidthSameType of int
             val toString: t -> string
             val fromString: string -> t option
          end
       val shallowFlattenPolicy: ShallowFlattenPolicy.t ref
+
+      structure ShallowFlattenMechanism:
+         sig
+            datatype t = Aos | Soa
+            val toString: t -> string
+            val fromString: string -> t option
+         end
+      val shallowFlattenMechanism: ShallowFlattenMechanism.t ref
 
       val preFlattenMaxIters: int ref
       val preFlattenRecursiveSteps: int ref

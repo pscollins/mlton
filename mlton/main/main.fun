@@ -724,11 +724,21 @@ fun makeOptions {usage} =
                                          rounds = rounds,
                                          small = small}
               | _ => ())),
-       (Expert, "shallow-flatten-policy", " maxWidth:<n>", "set shallow flattening policy (maxWidth:3)",
+       (Expert, "shallow-flatten-policy", " {maxWidth|maxWidthSameType}:<n>", "set shallow flattening policy (maxWidth:3)",
         SpaceString (fn s =>
                      case ShallowFlattenPolicy.fromString s of
                         SOME p => shallowFlattenPolicy := p
                       | NONE => usage (concat ["invalid -shallow-flatten-policy flag: ", s]))),
+       (Expert, "shallow-flatten-mechanism", " {aos|soa}", "set shallow flattening mechanism (soa)",
+        SpaceString (fn s =>
+                     case ShallowFlattenMechanism.fromString s of
+                        SOME m => shallowFlattenMechanism := m
+                      | NONE => usage (concat ["invalid -shallow-flatten-mechanism flag: ", s]))),
+       (Expert, "shallow-flatten-mechansim", " {aos|soa}", "set shallow flattening mechanism (soa)",
+        SpaceString (fn s =>
+                     case ShallowFlattenMechanism.fromString s of
+                        SOME m => shallowFlattenMechanism := m
+                      | NONE => usage (concat ["invalid -shallow-flatten-mechansim flag: ", s]))),
        (Expert, "shallow-flatten-max-iters", " <n>", "limit the number of shallow flattening iterations (1)",
         Int (fn n => shallowFlattenMaxIters := n)),
        (Expert, "pre-flatten-max-iters", " <n>", "limit the number of pre-flattening iterations (0)",

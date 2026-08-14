@@ -1,0 +1,6 @@
+ann
+  "allowPrim true"
+in
+  $(SML_LIB)/basis/basis.mlb
+  shallow-flatten-aos-3.sml
+end

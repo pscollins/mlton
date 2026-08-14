@@ -74,16 +74,59 @@ fun getContainerOfTupleTypeWidth (t: Type.t): int =
       | Type.Vector t' => getTupleTypeWidth t'
       | _ => 0
 
-datatype flattenPolicy = MaxWidth of int
+(* Callers rely on the fact that an empty container returns *false* *)
+fun isAllSame (cmp: 'a * 'a -> bool) (xs: 'a vector): bool = let
+   fun reduce (curr: 'a, prev: 'a option): 'a option =
+       case prev of
+           SOME prev' =>
+           if cmp (curr, prev') then SOME prev'
+           else NONE
+         | NONE => NONE
+   val init = if Vector.length xs = 0 then NONE
+              else SOME (Vector.first xs)
+in
+   Option.isSome (Vector.fold (xs, init, reduce))
+end
 
-(* Should the value corresponding to `t` be marked, according to `policy`? *)
-fun shouldMarkType (policy: flattenPolicy, t: Type.t) = let
-   val MaxWidth (maxWidth) = policy
+(* Returns:
+
+   * t == (t1, t2, ...) tuple ? t1 == t2 == ...
+   * otherwise, false
+*)
+fun isTupleOfSameTupleType (t: Type.t): bool =
+    case Type.deTupleOpt t of
+        SOME ts => isAllSame Type.equals ts
+      | _ => false
+
+(* Like above, but requires that `t` is `(...) array` or `(...) vector` *)
+fun isContainerOfSameTupleType (t: Type.t): bool =
+    case Type.dest t of
+        Type.Array t' => isTupleOfSameTupleType t'
+      | Type.Vector t' => isTupleOfSameTupleType t'
+      | _ => false
+
+datatype flattenPolicy = MaxWidth of int
+                       | MaxWidthSameType of int
+
+datatype flattenMechanism = FlattenSoA
+                          | FlattenAoS
+
+(* Should the value corresponding to `t` be flattened, according to `policy`? *)
+fun shouldFlattenType (policy: flattenPolicy) (t: Type.t) : bool = let
+   val (maxWidth, differentOk) =
+       case policy of
+           MaxWidth w => (w, true)
+         | MaxWidthSameType w => (w, false)
    (* No reason to flatten tuples with <2 elements *)
    val kMinWidth = 2
    val currWidth = getContainerOfTupleTypeWidth t
+   val matchesWidth =
+       (currWidth >= kMinWidth) andalso
+       (currWidth <= maxWidth)
+   val matchesSame = differentOk orelse
+                     (isContainerOfSameTupleType t)
 in
-   (currWidth >= kMinWidth) andalso (currWidth <= maxWidth)
+   matchesWidth andalso matchesSame
 end
 
 fun getChildren (t: Type.t): Type.t vector =
@@ -108,8 +151,7 @@ fun layoutConDecision cd =
 
 fun getConDecisionForPolicy (policy: flattenPolicy)
                             (t: Type.t): conDecision = let
-   fun shouldMark t = shouldMarkType (policy, t)
-   val MaxWidth (width) = policy
+   val shouldMark = shouldFlattenType policy
    fun walk (t: Type.t) = let
       fun next t' = Vector.map (getChildren t', walk)
    in
@@ -128,29 +170,48 @@ fun getUniqueElement (xs: 'a vector): 'a =
        Vector.first xs
     else Error.bug ("Bad length: " ^ Int.toString (Vector.length xs))
 
+fun conDecisionEquals (l: conDecision, r: conDecision): bool = let
+   fun checkSame (ls: conDecision vector, rs: conDecision vector) =
+       Vector.length ls = Vector.length rs andalso
+       Vector.forall2 (ls, rs, conDecisionEquals)
+in
+   case (l, r) of
+       (PreserveNode ls, PreserveNode rs) => checkSame (ls, rs)
+     | (FlattenNode ls, FlattenNode rs) => checkSame (ls, rs)
+     | _ => false
+end
+
 exception InvalidConFlattening
-fun applyConDecision (cd: conDecision,
+fun applyConDecision (mech: flattenMechanism)
+                     (cd: conDecision,
                       t: Type.t): Type.t = let
    fun assertEmpty xs =
        if Vector.length xs = 0 then ()
        else raise InvalidConFlattening
-   fun walk (t, cd): Type.t =
+   fun getAllSamElType ts =
+       if isAllSame Type.equals ts then
+          Vector.first ts
+       else raise InvalidConFlattening
+   fun getAllSameConDecision cds =
+       (* Note this can be slow in theory, but in practice the number of nested
+          flattenings is unlikely to be large *)
+       if isAllSame conDecisionEquals cds then
+          Vector.first cds
+       else raise InvalidConFlattening
+   fun walk (t: Type.t, cd: conDecision): Type.t =
        case (Type.dest t, cd) of
            (* Single-child, flattenable nodes *)
            (Type.Array t', PreserveNode cd') =>
            Type.array (walk (t', getUniqueElement cd'))
          | (Type.Array t', FlattenNode cds') =>
-            Type.tuple (Vector.map2 (Type.deTuple t',
-                                     cds',
-                                     Type.array o walk))
-          | (Type.Vector t', PreserveNode cd') =>
+           applyMechanism (Type.deTuple t', cds', Type.array)
+         | (Type.Vector t', PreserveNode cd') =>
            Type.vector (walk (t', getUniqueElement cd'))
          | (Type.Vector t', FlattenNode cds') =>
-           Type.tuple (Vector.map2 (Type.deTuple t',
-                                    cds',
-                                    Type.vector o walk))         (* Multi-child, un-flattenable internal nodes *)
-           | (Type.Tuple ts', PreserveNode cds') =>
-             Type.tuple (Vector.map2 (ts', cds', walk))
+           applyMechanism (Type.deTuple t', cds', Type.vector)
+         (* Multi-child, un-flattenable internal nodes *)
+         | (Type.Tuple ts', PreserveNode cds') =>
+           Type.tuple (Vector.map2 (ts', cds', walk))
          (* Single-child, un-flattenable internal nodes *)
          | (Type.Ref t', PreserveNode cd') =>
            Type.reff (walk (t', getUniqueElement cd'))
@@ -161,352 +222,31 @@ fun applyConDecision (cd: conDecision,
            (assertEmpty cd'; t)
          (* Invalid flattening decisions *)
          | _ => raise InvalidConFlattening
+   and applyMechanism (elTypes: Type.t vector,
+                       elDecisions: conDecision vector,
+                       mkContainer: Type.t -> Type.t): Type.t =
+       case mech of
+           FlattenSoA =>
+           (* ['a, 'b, 'c] + [cd1, cd2, cd3] + Type.array
+              ->
+              (walk ('a, cd1)) array *
+              (walk ('b, cd2)) array *
+              (walk ('c, cd3)) array
+            *)
+           Type.tuple (Vector.map2 (elTypes,
+                                    elDecisions,
+                                    mkContainer o walk))
+         | FlattenAoS =>
+           (* ['a, 'a, 'a] + [cd1, cd1, cd1] + Type.array
+              ->
+              (walk ('a, cd1)) array
+           *)
+           mkContainer (walk (getAllSamElType elTypes,
+                              getAllSameConDecision elDecisions))
 
    val _ = ()
 in
    walk (t, cd)
-end
-
-type flattenedVars = {
-   getFlattenedProp: Var.t -> bool,
-   setFlattenedProp: Var.t * bool -> unit,
-   getFlattenedConProp: Con.t -> conDecision vector,
-   setFlattenedConProp: Con.t * conDecision vector -> unit,
-   getArgFlatteningProp: Var.t -> conDecision,
-   setArgFlatteningProp: Var.t * conDecision -> unit,
-   destroyFlattenedProps: unit -> unit,
-   count: int ref
-}
-fun newFlattenedVars () = let
-   val {get, set, destroy} =
-       Property.destGetSetOnce (Var.plist, Property.initConst false)
-
-   val {get=get', set=set', destroy=destroy'} =
-       Property.destGetSetOnce (Con.plist, Property.initRaise
-                                               ("flattenCon", Con.layout))
-
-   val {get=get'', set=set'', destroy=destroy''} =
-       Property.destGetSetOnce (Var.plist, Property.initRaise
-                                               ("flattenArg", Var.layout))
-   fun doDestroy() =
-       (destroy(); destroy'(); destroy''())
-in
-   {getFlattenedProp=get,
-    setFlattenedProp=set,
-    getFlattenedConProp=get',
-    setFlattenedConProp=set',
-    getArgFlatteningProp=get'',
-    setArgFlatteningProp=set'',
-    destroyFlattenedProps=doDestroy,
-    count=ref 0}
-end
-
-fun destroyFlattenedVars (fv: flattenedVars): unit = let
-   val {destroyFlattenedProps, ...} = fv
-in
-   destroyFlattenedProps()
-end
-
-fun markForFlatten (fv: flattenedVars, v: Var.t): unit = let
-   val {setFlattenedProp, count, ...} = fv
-   val _ = count := (!count + 1)
-   fun logThunk () =
-       Layout.seq [Layout.str "markForFlatten: ",
-                   Var.layout v]
-   val _ = Control.diagnostic logThunk
-in
-   setFlattenedProp (v, true)
-end
-
-fun setConFlatteningDecision (fv: flattenedVars, c: Con.t,
-                       decisions: conDecision vector): unit = let
-   val {setFlattenedConProp, count, ...} = fv
-   fun logThunk () =
-       Layout.seq [Layout.str "setConFlatteningDecision: ",
-                   Con.layout c,
-                   Layout.str ": ",
-                   Vector.layout layoutConDecision decisions]
-   val _ = Control.diagnostic logThunk
-in
-   setFlattenedConProp (c, decisions)
-end
-
-fun isMarkedForFlatten (fv: flattenedVars, v: Var.t): bool = let
-   val {getFlattenedProp, ...} = fv
-in
-   getFlattenedProp v
-end
-
-fun getConFlatteningDecision (fv: flattenedVars, c: Con.t): conDecision vector = let
-   val {getFlattenedConProp, ...} = fv
-in
-   getFlattenedConProp c
-end
-
-fun setArgFlatteningDecision (fv: flattenedVars, v: Var.t,
-                              decision: conDecision): unit = let
-   val {setArgFlatteningProp, count, ...} = fv
-   val _ = count := (!count + 1)
-   fun logThunk () =
-       Layout.seq [Layout.str "setArgFlatteningDecision: ",
-                   Var.layout v,
-                   Layout.str ": ",
-                   layoutConDecision decision]
-   val _ = Control.diagnostic logThunk
-in
-   setArgFlatteningProp (v, decision)
-end
-
-fun getArgFlatteningDecision (fv: flattenedVars, v: Var.t): conDecision = let
-   val {getArgFlatteningProp, ...} = fv
-in
-   getArgFlatteningProp v
-end
-
-fun markedCount (fv: flattenedVars): int = let
-   val {count, ...} = fv
-in
-   !count
-end
-
-type varTypes = {
-   getType: Var.t -> Type.t,
-   setType: Var.t * Type.t -> unit,
-   getReturnType: Func.t -> Type.t vector option,
-   setReturnType: Func.t * Type.t vector option -> unit,
-   destroy: unit -> unit
-}
-fun newVarTypes () = let
-   val {get = getType, set = setType, destroy = destroyVar} =
-       Property.destGetSet (Var.plist, Property.initRaise ("varType", Var.layout))
-   val {get = getReturnType, set = setReturnType, destroy = destroyFunc} =
-       Property.destGetSet (Func.plist, Property.initRaise ("returnType", Func.layout))
-   fun destroy () =
-      (destroyVar ()
-       ; destroyFunc ())
-in
-   {getType = getType,
-    setType = setType,
-    getReturnType = getReturnType,
-    setReturnType = setReturnType,
-    destroy = destroy}
-end
-fun destroyVarTypes (vt: varTypes) = let
-   val {destroy, ...} = vt
-in
-   destroy()
-end
-
-fun setVarType (vt: varTypes, v, t) = let
-   val {setType, ...} = vt
-   fun logThunk () =
-       Layout.seq [Layout.str "setVarType: ",
-                   Var.layout v,
-                   Layout.str " -> ",
-                   Type.layout t]
-   val _ = Control.diagnostic logThunk
-in
-   setType (v, t)
-end
-
-fun getVarType (vt: varTypes, v) = let
-   val {getType, ...} = vt
-in
-   getType v
-end
-
-fun setReturnType (vt: varTypes, f, t) = let
-   val {setReturnType, ...} = vt
-   fun logThunk () =
-       Layout.seq [Layout.str "setReturnType: ",
-                   Func.layout f,
-                   Layout.str " -> ",
-                   Option.layout (Vector.layout Type.layout) t]
-   val _ = Control.diagnostic logThunk
-in
-   setReturnType (f, t)
-end
-
-fun getReturnType (vt: varTypes, f) = let
-   val {getReturnType, ...} = vt
-in
-   getReturnType f
-end
-
-fun updateToSavedTypes (vt: varTypes, f: Function.t): Function.t = let
-   val {args, blocks, mayInline, name, raises, returns, start} = Function.dest f
-   fun updateArg (var, _) = (var, getVarType (vt, var))
-   fun updateArgs args = Vector.map (args, updateArg)
-   fun updateBlock b = let
-      val Block.T {args, label, statements, transfer} = b
-   in
-      Block.T {args = updateArgs args,
-               label = label,
-               statements = statements,
-               transfer = transfer}
-   end
-in
-   Function.new {args = updateArgs args,
-                 blocks = Vector.map (blocks, updateBlock),
-                 mayInline = mayInline,
-                 name = name,
-                 raises = raises,
-                 returns = getReturnType (vt, name),
-                 start = start}
-end
-
-
-(* If possible, infer a new return type from `exp` under `vt`
-
-   Only the cases that can change due to flattening are supported.
-*)
-fun maybeReinferType (vt: varTypes, exp: Exp.t): Type.t option = let
-   fun getType v = getVarType (vt, v)
-   fun getNthTupleType (n, ty) = let
-      val tys = Type.deTuple ty
-   in
-      Vector.sub (tys, n)
-   end
-in
-   case exp of
-       Exp.Select {offset, tuple} =>
-       SOME (getNthTupleType (offset, getType tuple))
-     | Exp.Tuple vs => SOME (Type.tuple (Vector.map (vs, getType)))
-     | Exp.Var v => SOME (getType v)
-     (* This case should work, but we don't support it for now *)
-     | Exp.ConApp _ => NONE
-     (* These types can't be changed due to flattening, no need to update *)
-     | Exp.Const _ => NONE
-     | Exp.PrimApp _ => NONE
-     | Exp.Profile _ => NONE
-end
-
-fun propagateResultToLayout (result: (Exp.t * Type.t) option): Layout.t =
-    case result of
-        SOME (exp, ty) => Layout.seq [Layout.str "(",
-                                      Exp.layout exp,
-                                      Layout.str ", ",
-                                      Type.layout ty,
-                                      Layout.str ")"]
-      | NONE => Layout.str "(none)"
-
-fun maybePropagateTypesInExp (vt: varTypes, exp: Exp.t): (Exp.t * Type.t) option = let
-   fun getType v = getVarType (vt, v)
-   fun getNthTupleType (n, ty) = let
-      val tys = Type.deTuple ty
-   in
-      Vector.sub (tys, n)
-   end
-   fun buildRefDeref (arg) = let
-      val targ' = Type.deRef (getType arg)
-   in
-      (Exp.PrimApp {args = Vector.new1 arg,
-                    prim = Prim.Ref_deref,
-                    targs = Vector.new1 targ'},
-      targ')
-   end
-   fun buildRefRef (arg) = let
-      val targ' = getType arg
-   in
-      (Exp.PrimApp {args = Vector.new1 arg,
-                    prim = Prim.Ref_ref,
-                    targs = Vector.new1 targ'},
-          Type.reff targ')
-      end
-
-   fun reinferPrim {args, prim, targs} =
-       case prim of
-           Prim.Ref_deref => SOME (buildRefDeref (getUniqueElement args))
-        |  Prim.Ref_ref => SOME (buildRefRef (getUniqueElement args))
-        |  _ => NONE
-
-   val result =
-       case exp of
-           Exp.Select {offset, tuple} =>
-           SOME (exp, getNthTupleType (offset, getType tuple))
-         | Exp.Tuple vs => SOME (exp, Type.tuple (Vector.map (vs, getType)))
-         | Exp.Var v => SOME (exp, getType v)
-         (* This case should work, but we don't support it for now *)
-         | Exp.ConApp _ => NONE
-         (* These types can't be changed due to flattening, no need to update *)
-         | Exp.Const _ => NONE
-         | Exp.PrimApp prim => reinferPrim prim
-         | Exp.Profile _ => NONE
-   fun logThunk () =
-       Layout.seq [
-          Layout.str "maybePropagateTypesInExp: ",
-          Layout.str " original: ",
-          Exp.layout exp,
-          Layout.str ", result=",
-          propagateResultToLayout result
-       ]
-   val _ = Control.diagnostic logThunk
-in
-   result
-end
-
-fun propagateTypesInStatement (vt: varTypes, s: Statement.t):
-    Statement.t = let
-   fun logThunk () =
-      Layout.seq [Layout.str "propagateTypesInStatement: ",
-                  Statement.layout s]
-   val _ = Control.diagnostic logThunk
-   val Statement.T {exp, ty, var} = s
-   val (newExp, newTy) =
-       (* Update type/exp if necessary, otherwise keep the existing one *)
-       case maybePropagateTypesInExp (vt, exp) of
-           SOME new => new
-         | _ => (exp, ty)
-   val _ =
-       case var of
-           (* Update the type of the bound variable (if any) *)
-           SOME v => setVarType (vt, v, newTy)
-         | _ => ()
-in
-   Statement.T {exp = newExp, ty = newTy, var = var}
-end
-
-fun markStatementForPolicy (fv: flattenedVars,
-                            policy: flattenPolicy)
-                           (s: Statement.t): unit =
-   case (shouldMarkType (policy, extractType s), Statement.var s) of
-       (true, SOME v') => markForFlatten (fv, v')
-     | _ => ()
-
-fun markArgForPolicy (fv: flattenedVars, policy: flattenPolicy)
-                     ((var, ty): (Var.t * Type.t)): unit = let
-
-   (* HACK: We need `isMarkedForFlatten` to return true for block/function
-   arguments consumed by  `Array_` `PrimApp`s.
-
-     TODO(pscollins): Replace the existing "flattening decision" mechanism with
-     just propagation alone and get rid of `setArgFlatteningDecision`
-    *)
-
-   val _ =
-       if shouldMarkType (policy, ty) then
-          markForFlatten (fv, var)
-       else ()
-in
-   setArgFlatteningDecision (fv, var, getConDecisionForPolicy policy ty)
-end
-
-fun markDatatypeForPolicy (fv: flattenedVars, policy: flattenPolicy)
-                          (dt: Datatype.t): unit = let
-   val Datatype.T {cons, ...} = dt
-   fun getDecision ty = getConDecisionForPolicy policy ty
-   fun doCon {args, con} =
-       setConFlatteningDecision (fv, con, Vector.map (args, getDecision))in
-   Vector.foreach (cons, doCon)
-end
-
-exception BadFlattenError
-fun maybeFlattenArg (fv, (v, t)) = let
-   val decision = getArgFlatteningDecision (fv, v)
-   val t' = applyConDecision (decision, t)
-            handle InvalidConFlattening => raise BadFlattenError
-in
-   (v, t')
 end
 
 fun isArrayPrim prim =
@@ -516,12 +256,12 @@ fun isArrayPrim prim =
       | Prim.Array_copyArray  => true
       | Prim.Array_copyVector  => true
       | Prim.Array_length  => true
-      | Prim.Array_sub  => true
+      | Prim.Array_sub => true
       | Prim.Array_toArray  => true
       | Prim.Array_toVector  => true
       | Prim.Array_uninit  => true
       | Prim.Array_uninitIsNop  => true
-      | Prim.Array_update  => true
+      | Prim.Array_update => true
       | _ =>  false
 
 fun isVectorPrim prim =
@@ -535,6 +275,17 @@ fun isVectorPrim prim =
 fun isContainerPrim prim =
     isArrayPrim prim orelse
     isVectorPrim prim
+
+datatype containerType = ArrayType
+                      | VectorType
+
+
+fun getContainerType prim =
+    case (isArrayPrim prim, isVectorPrim prim) of
+        (true, false) => ArrayType
+      | (false, true) => VectorType
+      | _ =>  Error.bug (concat ["Not container prim: ",
+                                 Prim.toString prim])
 
 (* Given the `targs` of a vector/array, returns the corresponding flattened type
 
@@ -598,7 +349,7 @@ fun maybeFlattenStatement (s: Statement.t) = let
    fun doPrimApp (args, prim, targs) = let
       fun logThunk () =
           Layout.align [
-             Layout.seq [Layout.str "doPrimApp: ",
+             Layout.seq [Layout.str "doPrimApp(maybeFlattenStatement): ",
                          Prim.layout prim,
                          Layout.str " with targs ",
                          Vector.layout Type.layout targs],
@@ -609,7 +360,7 @@ fun maybeFlattenStatement (s: Statement.t) = let
       val _ = Control.diagnostic logThunk
       fun mkLogResultThunk (res) = let
          fun logThunk() = Layout.seq [
-                Layout.str "Result: ",
+                Layout.str "Result(maybeFlattenStatement): ",
                 maybeStmtsToLayout res
              ]
       in
@@ -824,7 +575,7 @@ fun maybeFlattenStatement (s: Statement.t) = let
          (* _ = Array_update['a](arr_a, n, x_a)
             _ = Array_update['b](arr_b, n, x_b)
             ...
-          *)
+         *)
          val storeStmts = Vector.map2 (selectArrs, selectVars, mkStore)
       in
          concatVecs [selectArrs,
@@ -942,327 +693,366 @@ in
      | _ => SOME (Vector.new1 s)
 end
 
-fun mustFlattenStatement (fv: flattenedVars, s: Statement.t): bool = let
-   val vars = ref []
-   fun push x = List.push (vars, x)
-   val _ =
-       case Statement.var s of
-           SOME x => push x
-         | _ => ()
-   val _ = Exp.foreachVar (Statement.exp s, push)
-   fun isFlattened x = isMarkedForFlatten (fv, x)
+(* If
+
+    t = ('a * 'b * 'c ...) tuple
+
+   is a tuple type satisying `isTupleOfSameTupleType`, returns `SOME 'a`.
+ *)
+fun deTupleOfSameTupleType (t: Type.t): Type.t option =
+    if isTupleOfSameTupleType t then
+       SOME (Vector.first (Type.deTuple t))
+    else NONE
+
+fun getUniqueAosTArg (targs: Type.t vector) = let
 in
-   List.exists (!vars, isFlattened)
+   if Vector.size targs = 1 then
+      deTupleOfSameTupleType (Vector.first targs)
+   else NONE
 end
 
-exception IllegalFlatteningDecision
-fun flattenStatements fv ss = let
-   fun mkLogThunk s = let
-      fun thunk() =
-          Layout.seq [Layout.str "Maybe flatten? ",
-                      Statement.layout s]
+fun getUniqueElementOrDefault (xs: 'a vector, default: 'a): 'a =
+    if Vector.size xs = 1 then
+       Vector.first xs
+    else default
+
+fun getLenPrim (ct: containerType) =
+       case ct of
+           ArrayType => Prim.Array_length
+         | VectorType => Prim.Vector_length
+
+fun mkContainerTypeOf (ct: containerType, elTy: Type.t): Type.t =
+    case ct of
+        ArrayType => Type.array elTy
+      | VectorType => Type.vector elTy
+
+fun maybeFlattenStatementAoS (s: Statement.t) = let
+   val Statement.T {exp, ty, var} = s
+   (* dest := Array_alloc[tArg](len) *)
+   fun mkArrayAlloc (primArg, tArg: Type.t, len: Var.t,
+                     dest: Var.t option) = let
+      val allocExp = Exp.PrimApp {args = Vector.new1 len,
+                                  prim = Prim.Array_alloc primArg,
+                                  targs = Vector.new1 tArg}
    in
-      thunk
+      Statement.T {exp = allocExp,
+                   ty = Type.array tArg,
+                   var = dest}
    end
-   fun doStmt s = let
-      val _ = Control.diagnostic (mkLogThunk s)
+   (* indexConst: indexTy := intVal *)
+   fun mkIndexConst (intVal: int): Statement.t = let
+      val intWordX = WordX.fromInt (intVal, WordSize.seqIndex ())
+      val intExp = Exp.Const (Const.word intWordX)
+   in
+      Statement.T {exp = intExp,
+                   ty = Type.word (WordSize.seqIndex ()),
+                   var = SOME (Var.newString "indexConst")}
+   end
+   (* mulRes := lhs * rhs *)
+   fun mkMul (lhs: Var.t, rhs: Var.t): Statement.t = let
+      val mulExp = Exp.PrimApp {args = Vector.new2 (lhs, rhs),
+                                (* TODO(pscollins): Is `signed = false` correct? *)
+                                prim = Prim.Word_mul (WordSize.seqIndex (),
+                                                      {signed = false}),
+                                targs = Vector.new0 ()}
+   in
+      Statement.T {exp = mulExp,
+                   ty = Type.word (WordSize.seqIndex ()),
+                   var = SOME (Var.newString "mulRes")}
+   end
+   (* dest := lhs / rhs *)
+   fun mkDiv (lhs: Var.t, rhs: Var.t, dest: Var.t option): Statement.t = let
+      val divExp = Exp.PrimApp {args = Vector.new2 (lhs, rhs),
+                                (* TODO(pscollins): Is `signed = false` correct? *)
+                                prim = Prim.Word_quot (WordSize.seqIndex (),
+                                                      {signed = false}),
+                                targs = Vector.new0 ()}
+   in
+      Statement.T {exp = divExp,
+                   ty = Type.word (WordSize.seqIndex ()),
+                   var = dest}
+   end
+   (* addRes := lhs + rhs *)
+   fun mkAdd (lhs: Var.t) (rhs: Var.t): Statement.t = let
+      val addExp = Exp.PrimApp {args = Vector.new2 (lhs, rhs),
+                                prim = Prim.Word_add (WordSize.seqIndex ()),
+                                targs = Vector.new0 ()}
+   in
+      Statement.T {exp = addExp,
+                   ty = Type.word (WordSize.seqIndex ()),
+                   var = SOME (Var.newString "addRes")}
+   end
+   (* newLen := {Array,Vector}_length[tArg](arg) *)
+   fun mkContainerLen (containerType, args, tArg) = let
+      val lenExp = Exp.PrimApp {args = args,
+                                prim = getLenPrim containerType,
+                                targs = Vector.new1 tArg}
+   in
+      Statement.T {exp = lenExp,
+                   ty = ty,
+                   var = SOME (Var.newString "newLen")}
+   end
+   (* loadRes := {Array,Vector}_sub[tArg](arrVar, idxVar) *)
+   fun mkContainerLoad (loadPrim: Type.t Prim.t,
+                        arrVar: Var.t,
+                        tArg: Type.t) (idxVar: Var.t) = let
+      val subExp = Exp.PrimApp {args = Vector.new2 (arrVar, idxVar),
+                                prim = loadPrim,
+                                targs = Vector.new1 tArg}
+   in
+      Statement.T {exp = subExp,
+                   (* Return type of a load is just the element type *)
+                   ty = tArg,
+                   var = SOME (Var.newString "loadRes")}
+   end
+   (* _ := Array_update[tArg](arrVar, idxVar, valVar) *)
+   fun mkArrayStore (arrVar, tArg)
+                    (idxVar: Var.t, valVar: Var.t) = let
+      val storeExp = Exp.PrimApp {args = Vector.new3 (arrVar, idxVar, valVar),
+                                  prim = Prim.Array_update,
+                                  targs = Vector.new1 tArg}
+   in
+      Statement.T {exp = storeExp,
+                   ty = Type.unit,
+                   var = NONE}
+   end
+
+   (* dest: (ty1 * ty2* ...) := (x1, x2, ...)  *)
+   fun mkTuple (stmts: Statement.t vector, dest: Var.t option) = let
+      (* x1, x2, ... *)
+      val vars = Vector.map (stmts, extractBind)
+      (* t1, t2, ... *)
+      val tys = Vector.map (stmts, extractType)
+   in
+      Statement.T {exp = Exp.Tuple vars,
+                   ty = Type.tuple tys,
+                   var = dest}
+   end
+   (* selectRes: ty := tuple[idx] *)
+   fun mkSelect (tuple: Var.t, ty: Type.t) (idx: int) =
+       Statement.T {exp = Exp.Select {offset = idx, tuple = tuple},
+                    ty = ty,
+                    var = SOME (Var.newString "selectRes")}
+   (* dest := Array_toVector[tArg](arrVar) *)
+   fun mkToVector (arrVar: Var.t, tArg: Type.t, dest: Var.t option) = let
+      val toVecExp = Exp.PrimApp {args = Vector.new1 arrVar,
+                                  prim = Prim.Array_toVector,
+                                  targs = Vector.new1 tArg}
+   in
+      Statement.T {exp = toVecExp,
+                   ty = Type.vector tArg,
+                   var = dest}
+   end
+   (* dest := Array_toArray[tArg](arrVar) *)
+   fun mkToArray (arrVar: Var.t, tArg: Type.t, dest: Var.t option) = let
+      val toArrExp = Exp.PrimApp {args = Vector.new1 arrVar,
+                                  prim = Prim.Array_toArray,
+                                  targs = Vector.new1 tArg}
+   in
+      Statement.T {exp = toArrExp,
+                   ty = Type.array tArg,
+                   var = dest}
+   end
+   (* _ := Array_uninit[tArg](arrVar, idxVar) *)
+   fun mkArrayUninit (arrVar: Var.t, tArg: Type.t)
+                     (idxVar: Var.t) = let
+      val uninitExp = Exp.PrimApp {args = Vector.new2 (arrVar, idxVar),
+                                   prim = Prim.Array_uninit,
+                                   targs = Vector.new1 tArg}
+   in
+      Statement.T {exp = uninitExp,
+                   ty = Type.unit,
+                   var = NONE}
+   end
+
+   fun doPrimApp (args, prim, targs) = let
+      val tupleWidth = getTupleTypeWidth (getUniqueElementOrDefault (targs,
+                                                                     Type.unit))
+      fun logThunk () =
+          Layout.align [
+             Layout.seq [Layout.str "doPrimApp(maybeFlattenStatementAos): ",
+                         Prim.layout prim,
+                         Layout.str " with targs ",
+                         Vector.layout Type.layout targs],
+             Layout.seq [
+                Layout.str "whole_statement: ",
+                Statement.layout s]
+          ]
+      val _ = Control.diagnostic logThunk
+      fun mkLogResultThunk (res) = let
+         fun logThunk() = Layout.seq [
+                Layout.str "Result(maybeFlattenStatementAoS): ",
+                maybeStmtsToLayout res
+             ]
       in
-         case (mustFlattenStatement (fv, s),
-               maybeFlattenStatement s) of
-             (false, _) => Vector.new1 s
-           | (true, SOME ss) => ss
-           (* For now, we only report missing flattening for PrimApp *)
-           | (true, NONE) => raise IllegalFlatteningDecision
+         logThunk
       end
-in
-   Vector.concatV (Vector.map (ss, doStmt))
-end
+      fun buildArrayAlloc (primArg, tArg) = let
+         (* tupleSize: indexTy = tupleWidth *)
+         val constStmt = mkIndexConst tupleWidth
+         (* newLen = n * tupleWidth *)
+         val mulStmt = mkMul (Vector.first args,
+                              extractBind constStmt)
+         (* arr = Array_alloc[elTy](newLen) *)
+         val allocStmt = mkArrayAlloc (primArg, tArg,
+                                       extractBind mulStmt, var)
+      in
+         Vector.new3 (constStmt, mulStmt, allocStmt)
+      end
+      fun buildContainerLength tArg = let
+         (* tupleSize: indexTy = tupleWidth *)
+         val constStmt = mkIndexConst tupleWidth
+         (* newLen = Array_length[elTy](arr) *)
+         val lenStmt = mkContainerLen (getContainerType prim,
+                                       args, tArg)
+         (* n = newLen / tupleSize *)
+         val divStmt = mkDiv (extractBind lenStmt,
+                              extractBind constStmt,
+                              var)
+      in
+         Vector.new3 (lenStmt, constStmt, divStmt)
+      end
+      (* x := (Array_sub(i * tupleWidth), Array_sub(i * tupleWidth + 1), ...)  *)
+      fun buildContainerLoad tArg = let
+         (* tupleSize: indexTy = tupleWidth *)
+         val constStmt = mkIndexConst tupleWidth
+         (* baseIdx: indexTy = tupleWidth * i *)
+         val mulStmt = mkMul (Vector.sub (args, 1),
+                              extractBind constStmt)
+         (* [val_{j} = j for j in range(tupleWidth)]  *)
+         val offsetStmts = Vector.tabulate (tupleWidth, mkIndexConst)
+         (* [idx_{j} = baseIdx + val_{j} for j in range(tupleWidth)]  *)
+         val idxStmts = Vector.map (Vector.map (offsetStmts, extractBind),
+                                    mkAdd (extractBind mulStmt))
+         (* [x_{j} = Array_sub[elTy](x, j) for j in range(tupleWidth) *)
+         val loadStmts = Vector.map (Vector.map (idxStmts, extractBind),
+                                     (* `prim` is `{Array,Vector}_sub` (maybe
+                                     with a `primArg`) *)
+                                     mkContainerLoad (prim,
+                                                      Vector.first args, tArg))
+         (* x = (x_0, x_1, ...) *)
+         val tupleStmt = mkTuple (loadStmts, var)
+      in
+         concatVecs [Vector.new2 (constStmt, mulStmt),
+                     offsetStmts,
+                     idxStmts,
+                     loadStmts,
+                     Vector.new1 tupleStmt]
+      end
+      (* arr[i*tupleWidth:i*(tupleWidth+1)-1] = x[0:tupleWidth-1] *)
+      fun buildArrayStore tArg = let
+         (* tupleSize: indexTy = tupleWidth *)
+         val constStmt = mkIndexConst tupleWidth
+         (* baseIdx: indexTy = tupleWidth * i *)
+         val mulStmt = mkMul (Vector.sub (args, 1),
+                              extractBind constStmt)
+         (* [val_{j} = j for j in range(tupleWidth)]  *)
+         val offsetStmts = Vector.tabulate (tupleWidth, mkIndexConst)
+         (* [idx_{j} = baseIdx + val_{j} for j in range(tupleWidth)]  *)
+         val idxStmts = Vector.map (Vector.map (offsetStmts, extractBind),
+                                    mkAdd (extractBind mulStmt))
+         (* [x_{j} = x[j] for j in range(tupleWidth)] *)
+          val selectStmts = Vector.tabulate (tupleWidth,
+                                             mkSelect (Vector.sub (args, 2), tArg))
+         (* _ := Array_update[elTy](arr, idx_{j}, x_{j}) for j in range(tupleWidth) *)
+         val storeStmts = Vector.map2 (Vector.map (idxStmts, extractBind),
+                                       Vector.map (selectStmts, extractBind),
+                                       mkArrayStore (Vector.first args, tArg))
+      in
+         concatVecs [Vector.new2 (constStmt, mulStmt),
+                     offsetStmts,
+                     idxStmts,
+                     selectStmts,
+                     storeStmts]
+      end
+      (* var := Array_toVector[tArg](arr) *)
+      fun buildArrayToVector tArg = let
+         val toVectorStmt = mkToVector (Vector.first args, tArg, var)
+      in
+         Vector.new1 toVectorStmt
+      end
+      (* isNop: bool := false *)
+      fun buildArrayUninitIsNop () = let
+         (* For now, just hardcode false: since the original elements were
+          tuples, this should be no-worse performance than we had before
+          (although it might waste some performance in case we could have
+          avoided doing this initialization on the flattened elements) *)
+         val falseExp = Exp.ConApp {con = Con.falsee,
+                                    args = Vector.new0()}
+         val assignStmt = Statement.T {exp = falseExp,
+                                       ty = Type.bool,
+                                       var = var}
+      in
+         Vector.new1 assignStmt
+      end
+      (* var := Array_toArray[tArg](arr) *)
+      fun buildArrayToArray tArg = let
+         val toArrayStmt = mkToArray (Vector.first args, tArg, var)
+      in
+         Vector.new1 toArrayStmt
+      end
+      (* Array_uninit[tArg](arr[i*tupleWidth:(i+1)*tupleWidth-1]) *)
+      fun buildArrayUninit tArg = let
+         (* tupleSize: indexTy = tupleWidth *)
+         val constStmt = mkIndexConst tupleWidth
+         (* baseIdx: indexTy = tupleWidth * i *)
+         val mulStmt = mkMul (Vector.sub (args, 1),
+                              extractBind constStmt)
+         (* [val_{j} = j for j in range(tupleWidth)]  *)
+         val offsetStmts = Vector.tabulate (tupleWidth, mkIndexConst)
+         (* [idx_{j} = baseIdx + val_{j} for j in range(tupleWidth)]  *)
+         val idxStmts = Vector.map (Vector.map (offsetStmts, extractBind),
+                                    mkAdd (extractBind mulStmt))
 
-fun flattenArgs fv args = let
-   fun doArg (t as (v, _)) =
-       maybeFlattenArg (fv, t)
-in
-   Vector.map (args, doArg)
-end
-
-fun flattenDatatype (fv: flattenedVars)
-                    (dt: Datatype.t): Datatype.t = let
-   val Datatype.T {cons, tycon} = dt
-   fun applyDecision (cd, t) =
-       applyConDecision (cd, t)
-       handle InvalidConFlattening => raise IllegalFlatteningDecision
-   fun maybeFlattenCon {args, con} = let
-      val decisions = getConFlatteningDecision (fv, con)
-      val args = Vector.map2 (decisions, args, applyDecision)   in
-      {args = args, con = con}
-   end
-in
-   Datatype.T {cons = Vector.map (cons, maybeFlattenCon),
-               tycon = tycon}
-end
-
-fun getFlattenedVarsInProgram (policy: flattenPolicy, p: Program.t) = let
-   val Program.T {datatypes, ...} = p
-   val fv = newFlattenedVars()
-   fun foreachStatements ss =
-       Vector.foreach(ss, markStatementForPolicy (fv, policy))
-   fun foreachArgs args =
-       Vector.foreach (args, markArgForPolicy (fv, policy))
-   fun foreachTransfer _ = ()
-
-   val visitor = {
-      foreachStatements = foreachStatements,
-      foreachArgs = foreachArgs,
-      foreachTransfer = foreachTransfer
-   }
-   val _ = foreachBfs visitor p
-   val _ = Vector.foreach (datatypes, markDatatypeForPolicy (fv, policy))
-in
-   fv
-end
-
-fun bindTypeInStatement (vt, s) = let
-   val Statement.T {var, ty, ...} = s
-in
-   case var of
-       SOME v' => setVarType (vt, v', ty)
-     | _ => ()
-end
-
-fun bindTypesInArgs (vt: varTypes)
-                    (args: (Var.t * Type.t) vector): (Var.t * Type.t) vector
-    = let
-   fun bindType (v, t) =
-       setVarType (vt, v, t)
-in
-   (Vector.foreach (args, bindType); args)
-end
-
-fun flattenDatatypesInProgram (fv: flattenedVars, p: Program.t): Program.t = let
-   val Program.T {datatypes, functions, globals, main} = p
-in
-   Program.T {datatypes = Vector.map (datatypes, flattenDatatype fv),
-              functions = functions,
-              globals = globals,
-              main = main}
-end
-
-fun layoutReturns (returns: Type.t vector option): Layout.t =
-    Option.layout (Vector.layout Type.layout) returns
-
-exception InconsistentTypes
-fun propagateReturnTypes (vt: varTypes, f: Function.t): Type.t vector option = let
-   val {returns, ...} = Function.dest f
-   fun getType v = getVarType (vt, v)
-   fun getReturnTy (b: Block.t): Type.t vector =
-       case Block.transfer b of
-           Transfer.Return (vs) => Vector.map (vs, getType)
-         | Transfer.Call {func, return = Return.Tail, ...} =>
-           (case getReturnType (vt, func) of
-                SOME tys => tys
-              | NONE => Vector.new0())
-         | _ => Vector.new0()
-   fun mergeReturnTys (l: Type.t vector, r: Type.t vector) =
-       case (Vector.length l, Vector.length r) of
-           (* We use emtpy vectors to encode non-Return transfers: if at least
-           one side is empty, return the other one *)
-           (0, 0) => l
-         | (0, y) => r
-         | (x, 0) => l
-         | (x, y) =>
-           if Vector.forall2 (l, r, Type.equals) then l
-           else raise InconsistentTypes
-   fun mergeAllReturnTys (types: Type.t vector vector) =
-       if Vector.length types > 0 then
-          Vector.fold (types, Vector.first types, mergeReturnTys)
-       else raise InconsistentTypes
-   val newReturns =
-       (* We might be able to simplify this a bit by skipping the `returns`
-          check, but this will give us a clear type error if something goes wrong *)
-       case returns of
-           SOME _ =>
-           SOME (mergeAllReturnTys (Vector.map (Function.blocks f, getReturnTy)))
-         | NONE => NONE
-   fun logThunk () =
-       Layout.seq [
-          Layout.str "propagateReturnTypes f=",
-          Func.layout (Function.name f),
-          Layout.str ", old=",
-          layoutReturns returns,
-          Layout.str ", new=",
-          layoutReturns newReturns
-       ]
-   val _ = Control.diagnostic logThunk
-in
-    newReturns
-end
-
-fun propagateThroughTransfer (vt: varTypes, fm: funcsMap,
-                              f: Func.t, t: Transfer.t): unit = let
-   fun logThunk () = Layout.seq [
-          Layout.str "propagateThroughTransfer: ",
-          Func.layout f,
-          Layout.str " for ",
-          Transfer.layout t
-       ]
-   val _ = Control.diagnostic logThunk
-   val {getFunc, getBlock, ...} = fm
-   fun getType v = getVarType (vt, v)
-   fun setType (v, t) = setVarType (vt, v, t)
-   fun getReturnTypeOrEmpty func =
-       case getReturnType (vt, func) of
-           SOME ts => ts
-         (* `NONE` is valid to pass as an argument to a nullary continuation *)
-         | NONE => Vector.new0()
-   fun propagateType (from, to) =
-       setType (to, getType from)
-   fun getFuncArgs (f: Func.t) = let
-      val {args, ...} = Function.dest (getFunc f)
+         val arrayUninitStmts = Vector.map (Vector.map (idxStmts, extractBind),
+                                            mkArrayUninit (Vector.first args,
+                                                           tArg))
+      in
+         concatVecs [Vector.new2 (constStmt, mulStmt),
+                     offsetStmts,
+                     idxStmts,
+                     arrayUninitStmts]
+      end
+      val result =
+          case (prim, getUniqueAosTArg (targs)) of
+              (Prim.Array_alloc primArg, SOME tArg)
+              => SOME (buildArrayAlloc (primArg, tArg))
+           | (Prim.Array_length, SOME tArg)
+             => SOME (buildContainerLength tArg)
+           | (Prim.Vector_length, SOME tArg)
+             => SOME (buildContainerLength tArg)
+           | (Prim.Array_sub, SOME tArg)
+             => SOME (buildContainerLoad tArg)
+           | (Prim.Vector_sub, SOME tArg)
+             => SOME (buildContainerLoad tArg)
+           | (Prim.Array_update, SOME tArg)
+             => SOME (buildArrayStore tArg)
+           | (Prim.Array_toVector, SOME tArg)
+             => SOME (buildArrayToVector tArg)
+           | (Prim.Array_uninitIsNop, SOME tArg)
+             (* TODO(pscollins): The pattern match is a bit different here than
+                in the SoA case -- the SoA version incorrectly thinks that the
+                type argument is the array type when it should be the element
+                type, so the SoA version effectively hardcodes this to `false`
+                for all arrays in the program. Revisit. *)
+             => SOME (buildArrayUninitIsNop ())
+           | (Prim.Array_toArray, SOME tArg)
+             => SOME (buildArrayToArray tArg)
+           | (Prim.Array_uninit, SOME tArg)
+             => SOME (buildArrayUninit tArg)
+           | _ => NONE
+      val _ = Control.diagnostic (mkLogResultThunk result)
    in
-      args
-   end
-   fun getBlockArgs (b: Label.t) = let
-      val Block.T {args, ...} = getBlock b
-   in
-      args
-   end
-   fun getVar (var, _) = var
-   fun propagateThroughArgs (fromVars: Var.t vector,
-                             toArgs: (Var.t * Type.t) vector) =
-       Vector.foreach2 (fromVars, Vector.map (toArgs, getVar),
-                        propagateType)
-   fun propagateAsReturn (target, args) =
-       setReturnType (vt, target, SOME (Vector.map (args, getType)))
-   fun propagateReturnType (fromF: Func.t, toF: Func.t) =
-       setReturnType (vt, toF, getReturnType (vt, fromF))
-    fun propagateThroughReturn (callee: Func.t, r: Return.t) =
-        case r of
-            Return.Dead => ()
-            (* Tail call means that the return type of `f` and `callee` are equal *)
-          | Return.Tail =>
-            propagateReturnType (callee, f)
-            (* Non-tail means that the return type of `callee` is equal to the argument
-               type of `cont` *)
-          | Return.NonTail {cont, ...} =>
-            case getReturnType (vt, callee) of
-                SOME calleeReturnType =>
-                Vector.foreach2 (calleeReturnType,
-                                 Vector.map (getBlockArgs cont, getVar),
-                                 fn (ty, var) => setType (var, ty))
-
-              (* A `NONE` return value on the callee means that this path (per
-                 gemini) is  dead, so there is no need to propagate types *)
-                | NONE => ()
-in
-   case t of
-       Transfer.Call {args, func, return, ...} =>
-       (* Function call requires that argument types equal formal parameter
-          types *)
-       (propagateThroughArgs (args, getFuncArgs func);
-        (* Return propagation depends on type *)
-        propagateThroughReturn (func, return))
-     | Transfer.Goto {args, dst} =>
-       propagateThroughArgs (args, getBlockArgs dst)
-     | Transfer.Return args =>
-       propagateAsReturn (f, args)
-     | _ => ()
-end
-
-(* Applies `propgatateReturnTypes` to every function in `p` *)
-fun propagateAllReturnTypes (vt: varTypes, p: Program.t): Program.t = let
-   val Program.T {datatypes, functions, globals, main} = p
-   fun doPropagate f = let
-      val {args, blocks, mayInline, name, raises, returns, start} =
-          Function.dest f
-   in
-      Function.new {args = args,
-                    blocks = blocks,
-                    mayInline = mayInline,
-                    name = name,
-                    raises = raises,
-                    returns = propagateReturnTypes (vt, f),
-                    start = start}
+      result
    end
 in
-   Program.T {datatypes = datatypes,
-              functions = List.map (functions, doPropagate),
-              globals = globals,
-              main = main}
+   case exp of
+       Exp.PrimApp {args, prim, targs} =>
+       if isContainerPrim prim then
+          doPrimApp (args, prim, targs)
+       else SOME (Vector.new1 s)
+     | _ => SOME (Vector.new1 s)
 end
-
-fun setInitialTypes (vt: varTypes, p: Program.t) = let
-   val Program.T {functions, globals, ...} = p
-   fun setInitialTypesForStatement s = bindTypeInStatement(vt, s)
-   fun setInitialTypesForStatements ss =
-       Vector.foreach (ss, setInitialTypesForStatement)
-   fun setInitialTypesForFunc f = let
-      val {name, blocks, returns, ...} = Function.dest f
-      val _ = setReturnType (vt, name, returns)
-   in
-      Vector.foreach (blocks,
-                      setInitialTypesForStatements o Block.statements)
-   end
-in
-   setInitialTypesForStatements globals;
-   List.foreach (functions,
-                 setInitialTypesForFunc)
-
-end
-
-fun updateAllToSavedTypes (vt: varTypes, p: Program.t) = let
-   val Program.T {datatypes, functions, globals, main} = p
-   fun updateFunc f = updateToSavedTypes (vt, f)
-in
-   Program.T {datatypes = datatypes,
-              functions = List.map (functions, updateFunc),
-              globals = globals,
-              main = main}
-end
-
-(* fun flattenOnce (policy: flattenPolicy) (p: Program.t): Program.t option = let *)
-(*    (* First pass: collect all of the variables in the program that need *)
-(*    flattening *) *)
-(*    val fv = getFlattenedVarsInProgram (policy, p) *)
-(*    val rewriter = { *)
-(*       doStatements = flattenStatements fv, *)
-(*       doArgs = flattenArgs fv, *)
-(*       doTransfer = fn (_, transfer) => transfer *)
-(*    } *)
-(*    val p' as Program.T {functions, ...} = rewriteBfs rewriter p *)
-(*    val count = markedCount fv *)
-
-(*    (* Second pass: propagate types + update datatype declarations *) *)
-(*    val vt = newVarTypes () *)
-(*    (* Seed with the initial types *) *)
-(*    val _ = setInitialTypes (vt, p') *)
-(*    val fm = newFuncsMap p' *)
-(*    fun doPropagateThroughStatements ss = let *)
-(*       fun doStmt s = propagateTypesInStatement (vt, s) *)
-(*    in *)
-(*       Vector.map (ss, doStmt) *)
-(*    end *)
-(*    fun doPropagateThroughTransfer (f, transfer) = *)
-(*        (propagateThroughTransfer (vt, fm, f, transfer); *)
-(*         transfer) *)
-(*    (* Run propagation *) *)
-(*    val propagator = { *)
-(*       doStatements = doPropagateThroughStatements, *)
-(*       doArgs = bindTypesInArgs vt, *)
-(*       (* doArgs = fn x => x, *) *)
-(*       doTransfer = doPropagateThroughTransfer *)
-(*    } *)
-(*    (* val p'' = propagateAllReturnTypes (vt, flattenDatatypesInProgram (fv, rewriteBfs propagator p')) *) *)
-(*    val p'' = propagateAllReturnTypes (vt, flattenDatatypesInProgram (fv, rewriteBfs propagator p')) *)
-(*    (* val p'' = flattenDatatypesInProgram (fv, rewriteBfs propagator p') *) *)
-(*    (* Cleanup *) *)
-(*    val {destroyFuncsMap, ...} = fm *)
-(*    val _ = destroyFuncsMap () *)
-(*    val _ = destroyVarTypes vt *)
-(*    val _ = destroyFlattenedVars fv *)
-(* in *)
-(*    if count > 0 then SOME p'' *)
-(*    else NONE *)
-(* end *)
 
 type flattener = {
    updateType: Type.t -> Type.t,
@@ -1314,13 +1104,19 @@ end
 fun policyToString (policy: flattenPolicy) =
     case policy of
         MaxWidth w => concat ["MaxWidth:", Int.toString w]
+     |  MaxWidthSameType w => concat ["MaxWidthSameType:", Int.toString w]
 
-fun deepFlattenTypeForPolicy (policy: flattenPolicy)
+fun mechanismToString (mechanism: flattenMechanism) =
+    case mechanism of
+        FlattenAoS => "FlattenAoS"
+      | FlattenSoA => "FlattenSoA"
+
+fun deepFlattenTypeForConfig (policy: flattenPolicy, mechanism: flattenMechanism)
                              (t: Type.t): Type.t = let
     fun doFlatten t = let
        (* TODO: simplify? *)
        val t' =
-           applyConDecision (getConDecisionForPolicy policy t, t)
+           applyConDecision mechanism (getConDecisionForPolicy policy t, t)
     in
        (* Iteratively apply to convergence *)
        if Type.equals (t, t') then t'
@@ -1329,8 +1125,10 @@ fun deepFlattenTypeForPolicy (policy: flattenPolicy)
     val t' = doFlatten t
     fun logThunk () = Layout.align [
            Layout.str
-               (String.concat ["deepFlattenTypeForPolicy(",
-                               policyToString policy, "):"]),
+               (String.concat ["deepFlattenTypeForConfig(",
+                               policyToString policy, ", ",
+                               mechanismToString mechanism,
+                               "):"]),
            Layout.str "old: ",
            Type.layout t,
            Layout.str "new: ",
@@ -1346,7 +1144,7 @@ fun doesPolicyFlattenStatement (policy: flattenPolicy)
                                (s: Statement.t): bool = let
    val Statement.T {exp, ty, var} = s
    (* TODO: add a new version that doesn't require wrapping *)
-   fun checkElType targs = shouldMarkType (policy, Type.array (getUniqueElement targs))
+   fun checkElType targs = shouldFlattenType policy (Type.array (getUniqueElement targs))
    fun checkPrim {args, prim, targs} =
        (* All currently-supported cases take the the `targ` as the element type
 
@@ -1354,8 +1152,7 @@ fun doesPolicyFlattenStatement (policy: flattenPolicy)
        *)
        case prim of
            Prim.Array_alloc _ => checkElType targs
-         | Prim.Array_array => checkElType targs
-         | Prim.Array_copyArray => checkElType targs
+         | Prim.Array_array => checkElType targs         | Prim.Array_copyArray => checkElType targs
          | Prim.Array_copyVector => checkElType targs
          | Prim.Array_length => checkElType targs
          | Prim.Array_sub => checkElType targs
@@ -1375,9 +1172,9 @@ in
      | _ => false
 end
 
-fun deepFlattenStatementsForPolicy (policy: flattenPolicy)
+fun deepFlattenStatementsForConfig (policy: flattenPolicy, mechanism: flattenMechanism)
                                    (s: Statement.t): Statement.t vector = let
-   val updateType = deepFlattenTypeForPolicy policy
+   val updateType = deepFlattenTypeForConfig (policy, mechanism)
    fun updateTypesInExp exp =
        case exp of
            Exp.PrimApp {args, prim, targs} =>
@@ -1391,10 +1188,15 @@ fun deepFlattenStatementsForPolicy (policy: flattenPolicy)
                     ty = updateType ty,
                     var = var}
 
+   fun doMaybeFlatten stmt =
+       case mechanism of
+           FlattenSoA => maybeFlattenStatement stmt
+         | FlattenAoS => maybeFlattenStatementAoS stmt
+
    fun flattenIfNeeded (stmt: Statement.t): Statement.t vector =
        if (doesPolicyFlattenStatement policy stmt) then
           (* NONE means a prim is missing, crash *)
-          Option.valOf (maybeFlattenStatement stmt)
+          Option.valOf (doMaybeFlatten stmt)
        else Vector.new1 stmt
 
    fun recursiveFlatten (stmts: Statement.t vector) = let
@@ -1426,13 +1228,13 @@ fun deepFlattenStatementsForPolicy (policy: flattenPolicy)
    (* ...then update types... *)
    val resultInit = Vector.map (statements, updateTypesInStatement)
 
-   (* ...updating types may have created more flattening opportunities, so run
+             (* ...updating types may have created more flattening opportunities, so run
       again.
 
       TODO: should we instead run this to convergence? *)
    val result = recursiveFlatten resultInit
-   fun logThunk() = Layout.align [
-          Layout.str "deepFlattenStatementsForPolicy: ",
+    fun logThunk() = Layout.align [
+           Layout.str "deepFlattenStatementsForConfig: ",
           Layout.str "initial=",
           Statement.layout s,
           Layout.str "afterFlatten=",
@@ -1461,7 +1263,7 @@ in
 end
 
 
-fun flattenOnce (policy: flattenPolicy) (p: Program.t): Program.t option = let
+fun flattenOnce (policy: flattenPolicy, mechanism: flattenMechanism) (p: Program.t): Program.t option = let
    val progress = ref false
 
    fun checkProgress (statements: Statement.t vector,
@@ -1482,17 +1284,17 @@ fun flattenOnce (policy: flattenPolicy) (p: Program.t): Program.t option = let
       Vector.foreach2 (statements, flattened, doUpdate)
    end
 
-   (* Applies `deepFlattenStatementsForPolicy` and updates `progress` to relect
+   (* Applies `deepFlattenStatementsForConfig` and updates `progress` to relect
       any changes *)
    fun flattenStatements statements = let
       val flattened = Vector.map (statements,
-                                  deepFlattenStatementsForPolicy policy)
+                                  deepFlattenStatementsForConfig (policy, mechanism))
       val _ = checkProgress (statements, flattened)
    in
       Vector.concatV flattened
    end
    val flattener = {
-      updateType = deepFlattenTypeForPolicy policy,
+      updateType = deepFlattenTypeForConfig (policy, mechanism),
       updateStatements = flattenStatements
    }
    val p' = flattenProgram flattener p
@@ -1508,17 +1310,21 @@ fun transform (p: Program.t): Program.t =
        val policy =
            case !Control.shallowFlattenPolicy of
                Control.ShallowFlattenPolicy.MaxWidth n => MaxWidth n
+             | Control.ShallowFlattenPolicy.MaxWidthSameType n => MaxWidthSameType n
+       val mechanism =
+           case !Control.shallowFlattenMechanism of
+               Control.ShallowFlattenMechanism.Aos => FlattenAoS
+             | Control.ShallowFlattenMechanism.Soa => FlattenSoA
        fun loop (p, n) =
           if n >= !Control.shallowFlattenMaxIters
              then p
           else
-             case flattenOnce policy p of
+             case flattenOnce (policy, mechanism) p of
                 NONE => p
               | SOME p' => loop (p', n + 1)
     in
         loop (p, 0)
      end
-
 
 
 end (* end struct *)

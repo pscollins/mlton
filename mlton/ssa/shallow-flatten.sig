@@ -6,14 +6,18 @@ sig
      which iteratively runs `flattenOnce` until convergence. The behavior of
      this call is controlled by the following flags:
 
-       -shallow-flatten-max-iters=N: limit the number of iterations to N
+       -shallow-flatten-max-iters=N
+           limits the number of iterations to N
 
-       -shallow-flatten-policy=maxWidth:$N sets the policy to `MaxWidth(n)`
+       -shallow-flatten-policy=[maxWidth|maxWidthSameType]:$N
+           sets the policy to `MaxWidth(N)`/`MaxWidthSameType(N)`
+
+       -shallow-flatten-mechanism=[aos|soa]:
+           sets the flattenMechanism
     *)
    include SSA_TRANSFORM
    structure FlattenUtil: FLATTEN_UTIL
    type funcsMap = FlattenUtil.funcsMap
-
 
    (* Abstract interface for applying the flattening transformation *)
    type flattener = {
@@ -34,9 +38,8 @@ sig
    (* Applies `flattener` to the specified program in source order. *)
    val flattenProgram: flattener -> Program.t -> Program.t
 
-
    (* If the provided `Type.t` is an array or vector of tuples, returns the
-   corresponding tuple of arrays or vectors, i.e.:
+      corresponding tuple of arrays or vectors, i.e.:
 
      ('a * 'b) array -> SOME ('a array * 'b array)
      ('a * 'b) vector -> SOME ('a vector * 'b vector)
@@ -45,11 +48,34 @@ sig
     *)
    val maybeFlattenType: Type.t -> Type.t option
 
-
    (* What array/vector types should be flattened? *)
    datatype flattenPolicy =
-        (* Flatten all tuple array types over <= `MaxWidth` tuple members *)
-        MaxWidth of int
+     (* Flatten all tuple array types over <= `MaxWidth` tuple members *)
+     MaxWidth of int
+     (* Like `MaxWidth`, but only applies to tuples where all elements are the
+     same type. *)
+     | MaxWidthSameType of int
+
+   (* How should we flatten the flattenable array/vector types? *)
+   datatype flattenMechanism =
+            (* Flatten in struct-of-array format, i.e.
+               ('a * 'b * 'c) array ->
+               ('a array * 'b array * 'c array)
+             *)
+            FlattenSoA
+            (* Flatten in array-of-struct format, i.e.
+               ('a * 'a * 'a) array ->
+               'a array
+
+               where len(flat_array) == 3 * len(array), and all indexing
+               operations, etc, are adjusted appropriately.
+
+               (For now, only compatible with MaxWidthSameType policy)
+             *)
+             | FlattenAoS
+
+   (* Should this `Type.t` flattened according to `policy`? *)
+   val shouldFlattenType: flattenPolicy -> Type.t -> bool
 
    (* Update an entire nested subject to `flattenPolicy`
 
@@ -65,8 +91,14 @@ sig
         (('a * b) array) array
           -> (('a array) * ('b array)) array
           -> ('a array array) * ('b array array)
+
+      The type that results from flattening is controlled by `flattenMechanism`,
+      i.e.
+
+        ('a * 'b) array + FlattenSoA -> 'a array * 'b array
+        ('a * 'a) array + FlattenAoS -> 'a array
    *)
-   val deepFlattenTypeForPolicy: flattenPolicy -> Type.t -> Type.t
+   val deepFlattenTypeForConfig: (flattenPolicy * flattenMechanism) -> Type.t -> Type.t
 
    (* Returns `true` if `Statement.t` requires the `maybeFlattenStatement`
       transformation (below) under `policy`, `false` otherwise.
@@ -93,7 +125,7 @@ sig
 
        Examples:
 
-         * Flattenable statement, no type transformation required
+         * Flattenable statement, no type transformation required (for FlattenSoA)
          arr: ('a * b) array = Array_alloc['a * b](n]
          -->
          arr_a: 'a array = Array_alloc['a](n)
@@ -101,13 +133,22 @@ sig
          arr: ('a array) * (b' array) = tuple (arr_a, arr_b)
 
 
-         * Non-flattenable statement, with type transformation required
+         * Non-flattenable statement, with type transformation required (for FlattenSoA)
          arr: ('a * b) array array = Array_alloc[('a * b') array](n]
          -->
          arr: ('a array * b array) array = Array_alloc['a array * b' array](n]
 
+       The applied flattening transformation + resulting types depend on the
+       supplied `flattenMechanism` in the obvious way, i.e.
+
+         * Above example under FlattenAoS:
+         arr: ('a * 'a) array = Array_alloc['a * 'a](n)
+         -->
+         arr: 'a array = Array_alloc['a](n * 2)
+
     *)
-   val deepFlattenStatementsForPolicy: flattenPolicy -> Statement.t -> Statement.t vector
+   val deepFlattenStatementsForConfig: (flattenPolicy * flattenMechanism) ->
+                                       Statement.t -> Statement.t vector
 
    (* Describes a flattening decision for a nested type *)
    datatype conDecision =
@@ -123,92 +164,20 @@ sig
 
    (* Recursively applies `conDecision` to the supplied type.
 
-    If the decision is invalid (i.e. `maybeFlattenType` returns NONE for a
-   `flattenNode` layer, raises InvalidConFlattening.
+      If the decision is invalid (i.e. `maybeFlattenType` returns NONE for a
+      `flattenNode` layer, raises InvalidConFlattening.
+  
+      Flattened types are constructed according to the rules of the provided
+      `flattenMechanism`, i.e.
+
+         {FlattenAoS + FlattenNode + ('a * 'b) array} -> 'a array * 'b array}
+         {FlattenSoA + FlattenNode + ('a * 'a) array} -> 'a array}
+         {FlattenSoA + FlattenNode + ('a * 'b) array} -> InvalidConFlattening}
    *)
    exception InvalidConFlattening
-   val applyConDecision: conDecision * Type.t ->
+   val applyConDecision: flattenMechanism ->
+                         conDecision * Type.t ->
                          Type.t
-
-   (* Tracks flattening decisions for variables, arguments, and constructors. *)
-   type flattenedVars
-   val newFlattenedVars: unit -> flattenedVars
-   val destroyFlattenedVars: flattenedVars -> unit
-   (* Marks the provided `Var.t` for flattening. It is only valid to call this
-   function once  on a particular `(fv, v)` pair *)
-   val markForFlatten: flattenedVars * Var.t -> unit
-   (* If the provided `Var.t` was previously marked for flattening (above),
-   returns true. Otherwise, returns false. *)
-   val isMarkedForFlatten: flattenedVars * Var.t -> bool
-   (* Like `markFlatten`, but for `Con.t` *)
-   val setConFlatteningDecision: flattenedVars * Con.t * conDecision vector -> unit
-   (* Like `isMarkedForFlatten`, but for `Con.t` *)
-   val getConFlatteningDecision: flattenedVars * Con.t -> conDecision vector
-   (* Like `markFlatten`, but for function/block arguments. The user should
-   always have the pair (Var.t * Type.t) available, but there's no need to pass
-   the type here. *)
-   val setArgFlatteningDecision: flattenedVars * Var.t * conDecision -> unit
-   (* Like `isMarkedForFlatten`, but for function/block arguments. *)
-   val getArgFlatteningDecision: flattenedVars * Var.t -> conDecision
-
-   (* Returns the total number of variables and constructors marked for
-   flattening *)
-   val markedCount: flattenedVars -> int
-
-    (* Tracks types of `Var.t`s  and argument/return types *)
-    type varTypes
-    val newVarTypes: unit -> varTypes
-    val destroyVarTypes: varTypes -> unit
-
-   (* Sets the type for a future `getVarType` call. Valid to call multiple times
-   (updating the stored type) *)
-   val setVarType: varTypes * Var.t * Type.t -> unit
-   (* Returns the type set by a previous `setVarType` call. *)
-   val getVarType: varTypes * Var.t -> Type.t
-   (* Sets the type for a future `getReturnType` call. Valid to call multiple
-   times (updating the stored type) *)
-   val setReturnType: varTypes * Func.t * Type.t vector option -> unit
-   (* Returns the type set by a pervious `setFuncArgType` call. *)
-   val getReturnType: varTypes * Func.t -> Type.t vector option
-
-   (* Applies all changes to argument/return types recorded in `varTypes` to the
-      provided function.
-
-      TODO(pscollins): Statement types are currently propagated separately --
-      this is a bit ugly; revisit.
-   *)
-   val updateToSavedTypes: varTypes * Function.t -> Function.t
-
-   (* Marks any vars in `Statement.t` that must be flattened according to the
-   provided policy. The following statement types may induce flattening:
-
-     * Any binding introducing a new array-typed variable:
-       x: ('a * 'b ...) array = ...
-
-     * Any argument (block or function) introducing a new array-typed variable:
-       f(x: 'a * b * ... array, ...)
-
-     * Any `Con.t` over an array type
-       datatype t = ConT of ('a * 'b * ...) array
-
-     * TODO(pscollins): More types? Should handle vector too
-    *)
-
-   val markStatementForPolicy: (flattenedVars * flattenPolicy) ->
-                               Statement.t -> unit
-   val markArgForPolicy: (flattenedVars * flattenPolicy) ->
-                         (Var.t * Type.t) -> unit
-   val markDatatypeForPolicy: (flattenedVars * flattenPolicy) ->
-                               Datatype.t -> unit
-
-
-   (* If the provided `Var.t` is not marked for flattening, returns the original
-   (var, type). Otherwise, returns (var, flattenedType), where `flattenedType`
-   is flattened according to the rules of `maybeFlattenType`: if `type` is not
-   flattenable, raises BadFlattenError. *)
-   exception BadFlattenError
-   val maybeFlattenArg: flattenedVars * (Var.t * Type.t) ->
-                        Var.t * Type.t
 
    (* Flattens the provided `Statement.t` into a sequence of statements, if
    possible. Otherwise, returns NONE.
@@ -317,8 +286,7 @@ sig
    10. `Array_uninit` on tuple types:
       arr: ('a * 'b * ...) array = ...
       _ = Array_uninit[('a * 'b * ...)](arr, n)
-      -->
-      (* by 1., arr is now 'a array * b array * ... *)
+      -->      (* by 1., arr is now 'a array * b array * ... *)
       arr_a: 'a array = select (arr, n)
       arr_b: 'b array = select (arr, 1)
       _: = Array_uninit['a](arr_a, n)
@@ -333,109 +301,120 @@ sig
    val maybeFlattenStatement: Statement.t ->
                               Statement.t vector option
 
-   (* Returns `true` if `Statement.` must be flattened.
+   (* AoS variant of the transformation above.
 
-      A statement must be flattened if it uses or defines a `Var.t` that must be
-      flattened.
+      For AoS-flattenable `PrimApp` expressions, converts a load from an
+      array/vector-of-tuple into a load from a flat array. Unlike the SoA
+      flattening transformation, the SoA flattening transformation only supports
+      tuples whose members are the same type.
+
+      The following `PrimApp` expressions are flattenable:
+
+     1. `Array_alloc` on tuple types
+       x: ('a * 'a * ...) array = Array_alloc['a * 'a * ...](n)
+       -->
+       tupleSize: indexTy = tupleWidth('a * 'a * ...)
+       n': indexTy = n * tupleWidth
+       x: 'a array = Array_alloc['a](n')
+
+    2. `Array_length` on tuple types:
+      arr: ('a * 'a * ...) array = ...
+      n: int = Array_length['a * 'a * ...](arr)
+      -->
+      (* by 1., arr is now 'a array *)
+       tupleSize: indexTy = tupleWidth('a * 'a * ...)
+       n': indexTy = Array_length['a](arr)
+       n: indexTy = n' / tupleSize
+      ...
+
+    3. `Array_sub` on tuple types:
+      arr: ('a * 'a * ...) array = ...
+      x: ('a * 'a * ...) = Array_sub['a * 'a * ...](x, i)
+      -->
+      (* by 1., arr is now 'a array  *)
+      tupleSize: indexTy = tupleWidth('a * 'a * ...)
+      x_0: 'a =  Array_sub['a](arr, i * tupleSize)
+      x_1: 'a =  Array_sub['a](arr, i * tupleSize + 1)
+      ...
+      x_n: 'b =  Array_sub['b](arr_b, i * tupleSize + tupleSize - 1)
+      x: ('a * 'a * ...) = tuple(x_1, x_1, ...)
+
+    4. `Array_update` on tuple types:
+      arr: ('a * 'a * ...) array = ...
+      x: ('a * 'a * ...) = ...
+      _ = Array_update['a * 'a * ...](arr, i, x)
+      -->
+      (* by 1., arr is now 'a array *)
+      tupleSize: indexTy = tupleWidth('a * 'a * ...)
+      x_0: 'a = select(x, 0)
+      x_1: 'a = select(x, 1)
+      ...
+      _ = Array_update['a](arr, i * tupleSize + 0, x_0)
+      _ = Array_update['a](arr, i * tupleSize + 1, x_1)
+      ...
+
+    5. `Array_toVector` on tuple types:
+      arr: ('a * 'a * ...) array = ...
+      vec: ('a * 'a * ...) vector = Array_toVector['a * 'a * ...](arr)
+      -->
+      (* by 1., arr is now 'a array *)
+      vec: 'a vector = Array_toVector['a)(arr)
+
+    6. `Vector_length` on tuple types:
+      n: int = Vector_length['a * 'a * ...](vec)
+      -->
+      (* vec is now 'a vector  ... *)
+       tupleSize: indexTy = tupleWidth('a * 'a * ...)
+       n': indexTy = Vector_length['a](arr)
+       n: indexTy = n' / tupleSize
+
+    7. `Vector_sub` on tuple types:
+      arr: ('a * 'a * ...) vector = ...
+      x: ('a * 'a * ...) = Vector_sub['a * 'a * ...](x, i)
+      -->
+      (* by 1., arr is now 'a vector  *)
+       tupleSize: indexTy = tupleWidth('a * 'a * ...)
+       x_0: 'a =  Vector_sub['a](arr, i * tupleSize)
+       x_1: 'a =  Vector_sub['a](arr, i * tupleSize + 1)
+       ...
+       x_n: 'b =  Vector_sub['b](arr_b, i * tupleSize + tupleSize - 1)
+       x: ('a * 'a * ...) = tuple(x_1, x_1, ...)
+
+    8. `Array_uninitIsNop` on tuple types:
+      arr: ('a * 'a * ...) array = ...
+      isNop: bool = Array_uninitIsNop['a * 'a * ...](arr)
+      -->
+      isNop: bool = false
+
+    9. `Array_toArray` on tuple types:
+      arr: ('a * 'a * ...) array = ...
+      arr': ('a * 'a * ...) array = Array_toArray['a * 'a * ...](arr)
+      -->
+      (* by 1., arr is now 'a array *)
+      arr': 'a array = Array_toArray['a](arr)
+      ...
+
+   10. `Array_uninit` on tuple types:
+      arr: ('a * 'a * ...) array = ...
+      _ = Array_uninit['a * 'a * ...](arr, n)
+      -->
+      (* by 1., arr is now 'a array *)
+      tupleSize: indexTy = tupleWidth('a * 'a * ...)
+      _: = Array_uninit['a](arr, n * tupleSize)
+      _: = Array_uninit['a](arr, n * tupleSize + 1)
+      ...
+      _: = Array_uninit['a](arr, n * tupleSize + tupleSize - 1)
+
+    Non-`PrimApp` expressions and also non-array/vector `PrimApp` expressions
+    always return `SOME (originalStatement)`
     *)
-   val mustFlattenStatement: flattenedVars * Statement.t -> bool
-
-   (* Propages `varTypes` through the provided `Exp.t` (if necessary)
-
-      For `Exp.t`s that must be updated for flattening, returns
-        SOME (exp, ty)
-      where `exp` is the updated expression, and `ty` is the updated return
-      type.
-
-      For `Exp.t`s that do not change under flattening, `NONE`.
-
-      Non-`PrimApp`s pass through the `exp` unchanged and return, i.e.
-
-        * `select (t, n)`
-        * `tuple (x1, x2, x3)`
-        * `Var (x)`
-
-      propagate `varTpes` in the obvious way. Other non-`PrimApp`s return NONE.
-
-      For `PrimApp`s:
-
-        * Ref_deref[_](arg) -> SOME (Ref_deref[type(arg)], type(arg))
-        * Ref_ref[_](arg) -> SOME (Ref_ref[type(arg)], type(arg) ref)
-
-      Note that this function does NOT support `Array_` prims -- these require
-      more complicated rewrites (emitting multiple statements) and so aren't
-      supported here.
-
-      TODO: ConApp should "unify"
-      TODO: PrimApp
-   *)
-   val maybePropagateTypesInExp: varTypes * Exp.t ->
-                                 (Exp.t * Type.t) option
-
-
-   (* For all statements `lhs: ty = rhs`
-
-        1. Recomputes `(ty', rhs')` via propagation (defined above)
-
-        2. If needed, updates `lhs` to `ty'` in `varTypes`
-        3. Returns a new `Statement.t` with the updated types
-
-     e.g. for
-       * varTypes = {x -> int, y -> bool * bool}
-       * statement = {y: bool * bool = tuple (x, x)}
-
-     this call:
-       1. Updates `varTypes` so that `y -> int * int`
-       2. Returns the modified statement
-          y: int * int = tuple (int, int)
-   *)
-   val propagateTypesInStatement: varTypes * Statement.t -> Statement.t
-
-   (* Updates `returns` to match the type of all `Return`s.
-
-   If the function's current `returns` is `NONE`, returns `NONE`.
-
-   If the type of every `Return.t` matches, returns `SOME returnTy`
-
-   Otherwise, if the types of the `Return.t`s are inconsistent, raises
-   `InconsistentTypes`.
-   *)
-   exception InconsistentTypes
-   val propagateReturnTypes: varTypes * Function.t -> Type.t vector option
-
-   (* Updates `varTypes` for the provided `Transfer.t`:
-
-      1. For `Call`/`Goto`: updates each formal parameter type to match the type
-         of the passed argument (for the target `func`/`label`)
-      2. For `Return`: updates the return type of the provided `Func.t`
-      3. For `Call` with a `Tail` return type: updates the return type of the
-         provided `Func.t` to match the return type of the target function.
-   *)
-   val propagateThroughTransfer: varTypes * funcsMap * Func.t * Transfer.t -> unit
-
-   (* Flattens (according to the rules of `maybeFlattenStatement`) all
-   statements in the provided `Statement.t vector` that require it (according to
-   the rules of `mustFlattenStatement`), then updates types via the rules of
-   `propagateTypesInStatement`.
-
-   If some statement must be flattened, but cannot, raises
-   `IllegalFlatteningDecision`.
-    *)
-   (* TODO: needs tests *)
-   exception IllegalFlatteningDecision
-   val flattenStatements: flattenedVars -> Statement.t vector ->
-                          Statement.t vector
-   (* Like above, but for arguments *)
-   val flattenArgs: flattenedVars -> (Var.t * Type.t) vector ->
-                    (Var.t * Type.t) vector
-
-   (* Like above, but for marked `Con.t`s *)
-   val flattenDatatype: flattenedVars -> Datatype.t ->
-                        Datatype.t
+   val maybeFlattenStatementAoS: Statement.t ->
+                                 Statement.t vector option
 
    (* Runs one iteration of flattening, collecting all flattenable array values
       and transforming them appropriately. Returns (SOME ...) if any value was
       successfully flattened, NONE otherwise.
     *)
-   val flattenOnce: flattenPolicy -> Program.t -> Program.t option
+   val flattenOnce: (flattenPolicy * flattenMechanism)
+                    -> Program.t -> Program.t option
 end
