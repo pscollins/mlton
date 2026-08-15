@@ -10,7 +10,7 @@ set -x
 
 # Compilers + build flags under test
 MLTON0="../../build/bin/mlton"
-MLTON0_FLAGS=
+MLTON0_FLAGS='-disable-pass "(preFlatten.*)|(shallowFlatten.*)"'
 MLTON1='~/code/mpl/build/bin/mpl'
 MLTON1_FLAGS='-pre-flatten-max-iters 0'
 BFLAGS="-mlton '$MLTON0 $MLTON0_FLAGS' -mlton '$MLTON1 $MLTON1_FLAGS'"
