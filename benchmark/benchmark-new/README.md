@@ -46,6 +46,7 @@ make
 | **`soa`** | Structure-of-Arrays shallow flattening | `-link-opt -s -build-magic 0 -shallow-flatten-max-iters 1 -pre-flatten-max-iters 0 -shallow-flatten-mechanism soa -shallow-flatten-policy maxWidthSameType:4` |
 | **`conapp`** | Constructor application pre-flattening | `-link-opt -s -build-magic 0 -pre-flatten-max-iters 1 -pre-flatten-consumer-policy always -pre-flatten-resolve-policy local -pre-flatten-types-policy con -pre-flatten-recursive-steps 10 -pre-flatten-phase early -pre-flatten-transfer-policy always` |
 | **`tuple`** | Tuple pre-flattening | `-link-opt -s -build-magic 0 -pre-flatten-max-iters 1 -pre-flatten-consumer-policy always -pre-flatten-resolve-policy local -pre-flatten-types-policy tuple -pre-flatten-recursive-steps 10 -pre-flatten-phase late -pre-flatten-transfer-policy tail_only` |
+| **`none`** | Skip this configuration side (e.g. to run only the test or base config) | *(none)* |
 
 ### Output File Format
 

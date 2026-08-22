@@ -85,6 +85,8 @@ def main():
         default=".*",
         help="Regex pattern to filter benchmarks (default: '.*')",
     )
+    config_choices = list(CONFIG_FLAGS.keys()) + ["none"]
+
     parser.add_argument(
         "--test_config",
         "--test-config",
@@ -92,8 +94,8 @@ def main():
         "-t",
         dest="test_config",
         required=not any(arg in sys.argv for arg in ["--list-benchmarks", "--list-configs", "--list-build-types", "-h", "--help"]),
-        choices=list(CONFIG_FLAGS.keys()),
-        help=f"Test compiler configuration (required, choices: {', '.join(CONFIG_FLAGS.keys())})",
+        choices=config_choices,
+        help=f"Test compiler configuration (required, choices: {', '.join(config_choices)})",
     )
     parser.add_argument(
         "--base_config",
@@ -101,8 +103,8 @@ def main():
         "--base",
         dest="base_config",
         default="baseline",
-        choices=list(CONFIG_FLAGS.keys()),
-        help=f"Base compiler configuration (default: baseline, choices: {', '.join(CONFIG_FLAGS.keys())})",
+        choices=config_choices,
+        help=f"Base compiler configuration (default: baseline, choices: {', '.join(config_choices)})",
     )
     parser.add_argument(
         "--build_type",
@@ -157,6 +159,8 @@ def main():
         for name, flags in CONFIG_FLAGS.items():
             print(f"  {name}:")
             print(f"    flags: {flags}")
+        print("  none:")
+        print("    flags: (skip configuration side)")
         sys.exit(0)
 
     if args.list_build_types:
@@ -203,23 +207,34 @@ def main():
     date = datetime.now().strftime("%Y%m%d_%H%M%S")
     outfile = outputs_dir / f"{args.name}:{hostname}:{git_hash}:{date}.jsonl"
 
-    base_flags = CONFIG_FLAGS[args.base_config]
-    test_flags = CONFIG_FLAGS[args.test_config]
+    if args.base_config == "none" and args.test_config == "none":
+        print(
+            "Error: At least one of base_config or test_config must not be 'none'.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     build_type_flags = BUILD_TYPE_FLAGS[args.build_type]
-    if build_type_flags:
-        base_flags = f"{base_flags} {build_type_flags}"
-        test_flags = f"{test_flags} {build_type_flags}"
+
+    mlton_args = []
+    if args.base_config != "none":
+        base_flags = CONFIG_FLAGS[args.base_config]
+        if build_type_flags:
+            base_flags = f"{base_flags} {build_type_flags}"
+        mlton_args.extend(["-mlton", f"{args.mlton} {base_flags}"])
+
+    if args.test_config != "none":
+        test_flags = CONFIG_FLAGS[args.test_config]
+        if build_type_flags:
+            test_flags = f"{test_flags} {build_type_flags}"
+        mlton_args.extend(["-mlton", f"{args.mlton} {test_flags}"])
 
     cmd = [
         str(benchmark_bin),
         "-json",
         "-outfile",
         str(outfile),
-        "-mlton",
-        f"{args.mlton} {base_flags}",
-        "-mlton",
-        f"{args.mlton} {test_flags}",
+        *mlton_args,
         *extra_args,
         *selected_benchmarks,
     ]
