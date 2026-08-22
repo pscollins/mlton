@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 from pathlib import Path
 import re
+import shlex
 import socket
 import subprocess
 import sys
@@ -223,14 +224,13 @@ def main():
         *selected_benchmarks,
     ]
 
+    if args.dry_run:
+        full_cmd = f"(cd {shlex.quote(str(tests_dir))} && {shlex.join(cmd)})"
+        print(full_cmd)
+        sys.exit(0)
+
     print(f"Running benchmarks and saving output to: {outfile}")
     sys.stdout.flush()
-
-    if args.dry_run:
-        print("\n[Dry Run] Working directory:", tests_dir)
-        print("[Dry Run] Command:")
-        print(" ".join(f"'{c}'" if " " in c else c for c in cmd))
-        sys.exit(0)
 
     try:
         proc = subprocess.run(cmd, cwd=tests_dir)

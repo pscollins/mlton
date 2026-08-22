@@ -194,3 +194,6 @@
 /zern.*.batch
 /zern.*.batch.sml
 /zern.*-*
+
+*.c
+*.s
