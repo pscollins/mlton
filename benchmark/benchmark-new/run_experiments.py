@@ -31,6 +31,13 @@ CONFIG_FLAGS = {
     "tuple": f"{SHARED_FLAGS} -pre-flatten-max-iters 1 -pre-flatten-consumer-policy always -pre-flatten-resolve-policy local -pre-flatten-types-policy tuple -pre-flatten-recursive-steps 10 -pre-flatten-phase late -pre-flatten-transfer-policy tail_only",
 }
 
+BUILD_TYPE_FLAGS = {
+    "default": "",
+    "dump_ir": "-keep-pass-out-dir bin -keep-pass '.*'",
+    "diagnostic": "-keep-pass-out-dir bin -diag-pass '.*' -keep-pass '.*' -verbose 3",
+    "profile": "-keep-pass-out-dir bin -diag-pass '.*' -keep-pass '.*' -verbose 3 -keep g -cc-opt '-g2' -link-opt '-lprofiler'",
+}
+
 
 def get_hostname() -> str:
     try:
@@ -83,7 +90,7 @@ def main():
         "--test",
         "-t",
         dest="test_config",
-        required=not any(arg in sys.argv for arg in ["--list-benchmarks", "--list-configs", "-h", "--help"]),
+        required=not any(arg in sys.argv for arg in ["--list-benchmarks", "--list-configs", "--list-build-types", "-h", "--help"]),
         choices=list(CONFIG_FLAGS.keys()),
         help=f"Test compiler configuration (required, choices: {', '.join(CONFIG_FLAGS.keys())})",
     )
@@ -97,9 +104,17 @@ def main():
         help=f"Base compiler configuration (default: baseline, choices: {', '.join(CONFIG_FLAGS.keys())})",
     )
     parser.add_argument(
+        "--build_type",
+        "--build-type",
+        dest="build_type",
+        default="default",
+        choices=list(BUILD_TYPE_FLAGS.keys()),
+        help=f"Build type mode (default: default, choices: {', '.join(BUILD_TYPE_FLAGS.keys())})",
+    )
+    parser.add_argument(
         "--name",
         dest="name",
-        required=not any(arg in sys.argv for arg in ["--list-benchmarks", "--list-configs", "-h", "--help"]),
+        required=not any(arg in sys.argv for arg in ["--list-benchmarks", "--list-configs", "--list-build-types", "-h", "--help"]),
         help="Run identifier used to populate the output file name",
     )
     parser.add_argument(
@@ -122,6 +137,11 @@ def main():
         action="store_true",
         help="List all available configurations and their flags, then exit",
     )
+    parser.add_argument(
+        "--list-build-types",
+        action="store_true",
+        help="List all available build types and their flags, then exit",
+    )
 
     args, extra_args = parser.parse_known_args()
 
@@ -136,6 +156,13 @@ def main():
         for name, flags in CONFIG_FLAGS.items():
             print(f"  {name}:")
             print(f"    flags: {flags}")
+        sys.exit(0)
+
+    if args.list_build_types:
+        print("Available build types:")
+        for name, flags in BUILD_TYPE_FLAGS.items():
+            print(f"  {name}:")
+            print(f"    flags: {flags or '(none)'}")
         sys.exit(0)
 
     # Compile benchmark regex
@@ -159,6 +186,8 @@ def main():
     tests_dir = (script_dir / "../tests").resolve()
     outputs_dir = script_dir / "outputs"
     outputs_dir.mkdir(parents=True, exist_ok=True)
+    bin_dir = tests_dir / "bin"
+    bin_dir.mkdir(parents=True, exist_ok=True)
 
     benchmark_bin = script_dir / "benchmark"
     if not benchmark_bin.is_file():
@@ -175,6 +204,11 @@ def main():
 
     base_flags = CONFIG_FLAGS[args.base_config]
     test_flags = CONFIG_FLAGS[args.test_config]
+
+    build_type_flags = BUILD_TYPE_FLAGS[args.build_type]
+    if build_type_flags:
+        base_flags = f"{base_flags} {build_type_flags}"
+        test_flags = f"{test_flags} {build_type_flags}"
 
     cmd = [
         str(benchmark_bin),
