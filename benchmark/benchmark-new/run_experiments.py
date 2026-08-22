@@ -126,6 +126,14 @@ def main():
         help="Path to MLton executable (default: '../../build/bin/mlton')",
     )
     parser.add_argument(
+        "--capture_profile",
+        "--capture-profile",
+        dest="capture_profile",
+        action="store_true",
+        default=False,
+        help="Capture CPU profile during benchmark compilation",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print the benchmark command without executing it",
@@ -216,43 +224,119 @@ def main():
 
     build_type_flags = BUILD_TYPE_FLAGS[args.build_type]
 
-    mlton_args = []
-    if args.base_config != "none":
-        base_flags = CONFIG_FLAGS[args.base_config]
-        if build_type_flags:
-            base_flags = f"{base_flags} {build_type_flags}"
-        mlton_args.extend(["-mlton", f"{args.mlton} {base_flags}"])
+    def build_mlton_args(bench: str | None = None) -> list[str]:
+        mlton_args = []
+        if args.base_config != "none":
+            base_flags = CONFIG_FLAGS[args.base_config]
+            if build_type_flags:
+                base_flags = f"{base_flags} {build_type_flags}"
+            prefix = ""
+            if args.capture_profile and bench:
+                prefix = f"CPUPROFILE=bin/{bench}_{args.base_config}.prof LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libprofiler.so "
+            mlton_args.extend(["-mlton", f"{prefix}{args.mlton} {base_flags}"])
 
-    if args.test_config != "none":
-        test_flags = CONFIG_FLAGS[args.test_config]
-        if build_type_flags:
-            test_flags = f"{test_flags} {build_type_flags}"
-        mlton_args.extend(["-mlton", f"{args.mlton} {test_flags}"])
+        if args.test_config != "none":
+            test_flags = CONFIG_FLAGS[args.test_config]
+            if build_type_flags:
+                test_flags = f"{test_flags} {build_type_flags}"
+            prefix = ""
+            if args.capture_profile and bench:
+                prefix = f"CPUPROFILE=bin/{bench}_{args.test_config}.prof LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libprofiler.so "
+            mlton_args.extend(["-mlton", f"{prefix}{args.mlton} {test_flags}"])
+        return mlton_args
 
-    cmd = [
-        str(benchmark_bin),
-        "-json",
-        "-outfile",
-        str(outfile),
-        *mlton_args,
-        *extra_args,
-        *selected_benchmarks,
-    ]
+    if not args.capture_profile:
+        mlton_args = build_mlton_args()
+        cmd = [
+            str(benchmark_bin),
+            "-json",
+            "-outfile",
+            str(outfile),
+            *mlton_args,
+            *extra_args,
+            *selected_benchmarks,
+        ]
 
-    if args.dry_run:
-        full_cmd = f"(cd {shlex.quote(str(tests_dir))} && {shlex.join(cmd)})"
-        print(full_cmd)
-        sys.exit(0)
+        if args.dry_run:
+            full_cmd = f"(cd {shlex.quote(str(tests_dir))} && {shlex.join(cmd)})"
+            print(full_cmd)
+            sys.exit(0)
 
-    print(f"Running benchmarks and saving output to: {outfile}")
-    sys.stdout.flush()
+        print(f"Running benchmarks and saving output to: {outfile}")
+        sys.stdout.flush()
 
-    try:
-        proc = subprocess.run(cmd, cwd=tests_dir)
-        sys.exit(proc.returncode)
-    except KeyboardInterrupt:
-        print("\nBenchmark run interrupted by user.", file=sys.stderr)
-        sys.exit(130)
+        try:
+            proc = subprocess.run(cmd, cwd=tests_dir)
+            sys.exit(proc.returncode)
+        except KeyboardInterrupt:
+            print("\nBenchmark run interrupted by user.", file=sys.stderr)
+            sys.exit(130)
+    else:
+        if args.dry_run:
+            for b in selected_benchmarks:
+                mlton_args = build_mlton_args(b)
+                cmd = [
+                    str(benchmark_bin),
+                    "-json",
+                    "-outfile",
+                    str(outfile),
+                    *mlton_args,
+                    *extra_args,
+                    b,
+                ]
+                full_cmd = f"(cd {shlex.quote(str(tests_dir))} && {shlex.join(cmd)})"
+                print(full_cmd)
+            sys.exit(0)
+
+        print(f"Running benchmarks and saving output to: {outfile}")
+        sys.stdout.flush()
+
+        if len(selected_benchmarks) == 1:
+            b = selected_benchmarks[0]
+            mlton_args = build_mlton_args(b)
+            cmd = [
+                str(benchmark_bin),
+                "-json",
+                "-outfile",
+                str(outfile),
+                *mlton_args,
+                *extra_args,
+                b,
+            ]
+            try:
+                proc = subprocess.run(cmd, cwd=tests_dir)
+                sys.exit(proc.returncode)
+            except KeyboardInterrupt:
+                print("\nBenchmark run interrupted by user.", file=sys.stderr)
+                sys.exit(130)
+        else:
+            outfile.write_text("")
+            for b in selected_benchmarks:
+                mlton_args = build_mlton_args(b)
+                temp_out = outputs_dir / f".tmp_{args.name}_{b}_{date}.jsonl"
+                cmd = [
+                    str(benchmark_bin),
+                    "-json",
+                    "-outfile",
+                    str(temp_out),
+                    *mlton_args,
+                    *extra_args,
+                    b,
+                ]
+                try:
+                    proc = subprocess.run(cmd, cwd=tests_dir)
+                    if temp_out.exists():
+                        with open(outfile, "a") as f_out, open(temp_out, "r") as f_in:
+                            f_out.write(f_in.read())
+                        temp_out.unlink()
+                    if proc.returncode != 0:
+                        sys.exit(proc.returncode)
+                except KeyboardInterrupt:
+                    if temp_out.exists():
+                        temp_out.unlink()
+                    print("\nBenchmark run interrupted by user.", file=sys.stderr)
+                    sys.exit(130)
+            sys.exit(0)
 
 
 if __name__ == "__main__":
