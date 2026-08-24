@@ -44,7 +44,7 @@ cd "${TESTS_DIR}"
 # Stripping debug symbols and setting a deterministic magic number are required
 # to get identical checksums (otherwise the nondeterministic C filenames and
 # compiler-random magic numbers are embedded in the binary)
-SHARED_FLAGS='-link-opt -s -build-magic 0' 
+SHARED_FLAGS='-link-opt -s -build-magic 0 -cc-opt -O2 -cc-opt -march=native'
 MLTON0="../../build/bin/mlton"
 MLTON0_FLAGS="${SHARED_FLAGS} -disable-pass '(preFlatten.*)|(shallowFlatten.*)'"
 MLTON1="../../build/bin/mlton"
