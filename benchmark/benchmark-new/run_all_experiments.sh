@@ -62,7 +62,7 @@ for flavor in "${FLAVOR_ARRAY[@]}"; do
     soa)
       "${SCRIPT_DIR}/run_soa_shallow_flatten_vs_head.sh" --name="test_soa_flatten_${BASE}" "${EXTRA_ARGS[@]}"
       ;;
-    conapp)
+    con|conapp)
       "${SCRIPT_DIR}/run_conapp_pre_flatten_vs_head.sh" --name="test_conapp_flatten_${BASE}" "${EXTRA_ARGS[@]}"
       ;;
     tuple)
