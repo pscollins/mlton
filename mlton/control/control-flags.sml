@@ -1527,6 +1527,11 @@ val preFlattenPostSteps =
             default = [PreFlattenPostStep.Shrink],
             toString = List.toString PreFlattenPostStep.toString}
 
+val preFlattenPostStepsOnly =
+   control {name = "pre-flatten-post-steps-only",
+            default = false,
+            toString = Bool.toString}
+
 structure PreFlattenLevelStep =
    struct
       datatype t = Block | Function

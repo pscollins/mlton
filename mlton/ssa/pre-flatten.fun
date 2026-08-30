@@ -1531,6 +1531,8 @@ fun transform (p: Program.t): Program.t =
                 NONE => p
               | SOME p' => loop (applyPostSteps p', n + 1)
     in
-       loop (p, 0)
+       if !Control.preFlattenPostStepsOnly
+          then applyPostSteps p
+       else loop (p, 0)
     end
 end

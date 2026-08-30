@@ -771,6 +771,8 @@ fun makeOptions {usage} =
                                case PreFlattenPostStep.fromString s of
                                   SOME p => p
                                 | NONE => usage (concat ["invalid -pre-flatten-post-steps flag: ", s])))),
+       (Expert, "pre-flatten-post-steps-only", " {false|true}", "only run pre-flattening post steps (false)",
+        boolRef preFlattenPostStepsOnly),
        (Expert, "pre-flatten-level-steps", " step1,step2,...", "set pre-flattening level steps (function)",
         SpaceString (fn s =>
                      preFlattenLevelSteps :=
