@@ -167,3 +167,58 @@ You can pass extra arguments to the benchmark binary by appending them to the sc
   ```bash
   ./run_shallow_flatten_experiments.sh --base_nick=my_run_label
   ```
+
+---
+
+## Viewing Results with `print_speedup.py`
+
+[`print_speedup.py`](print_speedup.py) parses benchmark JSONL output files and displays formatted ASCII tables comparing compiler configurations and computing relative speedups.
+
+### Basic Usage
+
+```bash
+# View speedup table for the most recent benchmark output
+./print_speedup.py
+
+# View a specific output file by name, path, or prefix
+./print_speedup.py outputs/test_tuple_run:myhost:09fe6138b:20260822_150512.jsonl
+./print_speedup.py test_conapp_flatten_mlton_mlton_o3
+```
+
+### Options
+
+| Option | Shorthand / Aliases | Description | Default |
+|---|---|---|---|
+| `[file]` | `-i`, `--input`, `-f`, `--file` | JSONL output file path or name | Most recent in `outputs/` |
+| `--sort` | `-s` | Sort rows (`default`, `name`, `speedup`, `speedup-asc`, `diff`, `base`, `test`) | `default` (suite order) |
+| `--benchmark` | `--filter`, `-b` | Regex pattern to filter benchmark names | `.*` |
+| `--metric` | `-m` | Metric to compare (`runtime`, `compile`, `size`, `all`) | `runtime` |
+| `--format` | | Output format (`ascii`, `markdown`, `plain`, `csv`, `tsv`) | `ascii` |
+| `--base` | | Baseline compiler abbreviation | `MLton0` |
+| `--test` | | Test compiler abbreviation | `MLton1` |
+| `--quiet` | `-q` | Suppress metadata header and print only the table | `False` |
+| `--list` | `-l` | List all available benchmark output files with timestamps | `False` |
+| `--precision` | `-p` | Decimal precision for timing values | `4` |
+
+### Examples
+
+```bash
+# Sort by highest speedup first
+./print_speedup.py --sort speedup
+
+# Filter benchmarks matching regex
+./print_speedup.py --benchmark '(fib|tak|vector|wc)'
+
+# Compare compile time or binary size
+./print_speedup.py --metric compile
+./print_speedup.py --metric size
+./print_speedup.py --metric all
+
+# Export as Markdown or CSV
+./print_speedup.py --format markdown
+./print_speedup.py --format csv
+
+# List all available benchmark runs
+./print_speedup.py --list
+```
+
