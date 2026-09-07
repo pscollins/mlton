@@ -454,6 +454,7 @@ signature CONTROL_FLAGS =
             val fromString: string -> t option
          end
       val preFlattenPostSteps: PreFlattenPostStep.t list ref
+      val preFlattenPostStepsOnly: bool ref
 
       structure PreFlattenLevelStep:
          sig

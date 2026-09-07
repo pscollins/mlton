@@ -21,6 +21,9 @@ sig
           where $STEPN={shrink|flatten}
           sets the sequence of `postStep`s to run (below)
 
+       -pre-flatten-post-steps-only={true|false}
+          skips the actual preFlatten pass and only runs the post-steps
+
        -pre-flatten-level-steps=$STEP1,$STEP2,...
           where $STEPN={function|block}
 
