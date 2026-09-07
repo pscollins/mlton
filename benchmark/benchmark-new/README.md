@@ -31,6 +31,7 @@ make
 | `--base_config` | `--base`, `--base-config` | Baseline compiler configuration | `baseline` |
 | `--benchmark` | `--benchmarks`, `-b` | Regex pattern to filter benchmarks | `.*` |
 | `--mlton` | | Path to the MLton compiler executable | `../../build/bin/mlton` |
+| `--extra_shared_flags` | `--extra-shared-flags` | Extra compiler flags to append to all configurations | `$EXTRA_SHARED_FLAGS` or `""` |
 | `--dry-run` | | Print the command that would be executed without running it | `False` |
 | `--list-benchmarks` | | List all 45 available benchmarks and exit | `False` |
 | `--list-configs` | | List all supported configurations and their flags | `False` |
@@ -167,3 +168,37 @@ You can pass extra arguments to the benchmark binary by appending them to the sc
   ```bash
   ./run_shallow_flatten_experiments.sh --base_nick=my_run_label
   ```
+
+### Overriding Compiler Flags with `EXTRA_SHARED_FLAGS`
+
+All `run*.sh` scripts define an `EXTRA_SHARED_FLAGS` setting that allows you to pass additional flags to the MLton compiler invocations for both configurations under test.
+
+By default, the benchmark scripts use the following base flags:
+```bash
+SHARED_FLAGS='-link-opt -s -build-magic 0 -cc-opt -O2 -cc-opt -march=native'
+```
+
+You can override or append extra compiler flags via `EXTRA_SHARED_FLAGS` in three ways:
+
+1. **Environment variable:**
+   ```bash
+   EXTRA_SHARED_FLAGS="-cc-opt -g3 -verbose 1" ./run_tuple_pre_flatten_vs_head.sh --name=my_run
+   ```
+   This environment variable is also automatically propagated to child scripts when running batch scripts:
+   ```bash
+   EXTRA_SHARED_FLAGS="-verbose 1" ./run_all_experiments.sh --base_nick=my_run
+   ```
+
+2. **Command-line argument:**
+   ```bash
+   ./run_aos_shallow_flatten_vs_head.sh --name=my_run --extra-shared-flags="-verbose 1"
+   ./run_all_experiments.sh --base_nick=my_run --extra-shared-flags="-verbose 1"
+   ```
+
+3. **Editing the setting directly in any `run*.sh` script:**
+   Near the top of each script:
+   ```bash
+   EXTRA_SHARED_FLAGS="${EXTRA_SHARED_FLAGS:-}"
+   ```
+   You can specify default extra flags directly by editing this variable.
+

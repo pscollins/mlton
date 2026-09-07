@@ -8,17 +8,45 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TESTS_DIR="${SCRIPT_DIR}/../tests"
 OUTPUTS_DIR="${SCRIPT_DIR}/outputs"
 
+# Setting: Extra shared flags passed to both compilers.
+# Can be overridden via environment variable (EXTRA_SHARED_FLAGS="..."), CLI (--extra-shared-flags="..."), or by editing here.
+EXTRA_SHARED_FLAGS="${EXTRA_SHARED_FLAGS:-}"
+
 # Parse arguments
 NAME=""
 EXTRA_ARGS=()
 
-for arg in "$@"; do
-  case $arg in
+while [[ $# -gt 0 ]]; do
+  case "$1" in
     --name=*)
-      NAME="${arg#*=}"
+      NAME="${1#*=}"
+      shift 1
+      ;;
+    --name)
+      if [[ -n "$2" ]]; then
+        NAME="$2"
+        shift 2
+      else
+        echo "Error: --name requires a value" >&2
+        exit 1
+      fi
+      ;;
+    --extra_shared_flags=*|--extra-shared-flags=*)
+      EXTRA_SHARED_FLAGS="${1#*=}"
+      shift 1
+      ;;
+    --extra_shared_flags|--extra-shared-flags)
+      if [[ -n "$2" ]]; then
+        EXTRA_SHARED_FLAGS="$2"
+        shift 2
+      else
+        echo "Error: $1 requires a value" >&2
+        exit 1
+      fi
       ;;
     *)
-      EXTRA_ARGS+=("$arg")
+      EXTRA_ARGS+=("$1")
+      shift 1
       ;;
   esac
 done
@@ -45,6 +73,9 @@ cd "${TESTS_DIR}"
 # to get identical checksums (otherwise the nondeterministic C filenames and
 # compiler-random magic numbers are embedded in the binary)
 SHARED_FLAGS='-link-opt -s -build-magic 0 -cc-opt -O2 -cc-opt -march=native'
+if [ -n "${EXTRA_SHARED_FLAGS}" ]; then
+  SHARED_FLAGS="${SHARED_FLAGS} ${EXTRA_SHARED_FLAGS}"
+fi
 MLTON0="../../build/bin/mlton"
 MLTON0_FLAGS="${SHARED_FLAGS} -disable-pass '(preFlatten.*)|(shallowFlatten.*)'"
 MLTON1="../../build/bin/mlton"

@@ -153,8 +153,19 @@ def main():
         action="store_true",
         help="List all available build types and their flags, then exit",
     )
+    parser.add_argument(
+        "--extra_shared_flags",
+        "--extra-shared-flags",
+        dest="extra_shared_flags",
+        default=os.environ.get("EXTRA_SHARED_FLAGS", ""),
+        help="Extra compiler flags to append to SHARED_FLAGS for all configurations (default: $EXTRA_SHARED_FLAGS)",
+    )
 
     args, extra_args = parser.parse_known_args()
+
+    if args.extra_shared_flags:
+        for k in CONFIG_FLAGS:
+            CONFIG_FLAGS[k] = f"{CONFIG_FLAGS[k]} {args.extra_shared_flags}"
 
     if args.list_benchmarks:
         print("Available benchmarks (45 total):")
