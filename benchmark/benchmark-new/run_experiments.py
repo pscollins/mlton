@@ -22,7 +22,7 @@ BENCHMARKS = [
     "vliw", "wc-input1", "wc-scanStream", "zebra", "zern",
 ]
 
-SHARED_FLAGS = "-link-opt -s -build-magic 0 -cc-opt -O2 -cc-opt -march=native"
+SHARED_FLAGS = "-link-opt -s -build-magic 0 -cc-opt -O3 -cc-opt -march=native"
 
 CONFIG_FLAGS = {
     "baseline": f"{SHARED_FLAGS} -disable-pass '(preFlatten.*)|(shallowFlatten.*)'",

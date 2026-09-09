@@ -42,11 +42,11 @@ make
 
 | Configuration | Description | Flags |
 |---|---|---|
-| **`baseline`** | Baseline compiler (disables pre-flatten and shallow-flatten passes) | `-link-opt -s -build-magic 0 -cc-opt -O2 -cc-opt -march=native -disable-pass '(preFlatten.*)\|(shallowFlatten.*)'` |
-| **`aos`** | Array-of-Structures shallow flattening | `-link-opt -s -build-magic 0 -cc-opt -O2 -cc-opt -march=native -shallow-flatten-max-iters 1 -pre-flatten-max-iters 0 -shallow-flatten-mechanism aos -shallow-flatten-policy maxWidthSameType:4` |
-| **`soa`** | Structure-of-Arrays shallow flattening | `-link-opt -s -build-magic 0 -cc-opt -O2 -cc-opt -march=native -shallow-flatten-max-iters 1 -pre-flatten-max-iters 0 -shallow-flatten-mechanism soa -shallow-flatten-policy maxWidthSameType:4` |
-| **`conapp`** | Constructor application pre-flattening | `-link-opt -s -build-magic 0 -cc-opt -O2 -cc-opt -march=native -pre-flatten-max-iters 1 -pre-flatten-consumer-policy always -pre-flatten-resolve-policy local -pre-flatten-types-policy con -pre-flatten-recursive-steps 10 -pre-flatten-phase early -pre-flatten-transfer-policy always` |
-| **`tuple`** | Tuple pre-flattening | `-link-opt -s -build-magic 0 -cc-opt -O2 -cc-opt -march=native -pre-flatten-max-iters 1 -pre-flatten-consumer-policy always -pre-flatten-resolve-policy local -pre-flatten-types-policy tuple -pre-flatten-recursive-steps 10 -pre-flatten-phase late -pre-flatten-transfer-policy tail_only` |
+| **`baseline`** | Baseline compiler (disables pre-flatten and shallow-flatten passes) | `-link-opt -s -build-magic 0 -cc-opt -O3 -cc-opt -march=native -disable-pass '(preFlatten.*)\|(shallowFlatten.*)'` |
+| **`aos`** | Array-of-Structures shallow flattening | `-link-opt -s -build-magic 0 -cc-opt -O3 -cc-opt -march=native -shallow-flatten-max-iters 1 -pre-flatten-max-iters 0 -shallow-flatten-mechanism aos -shallow-flatten-policy maxWidthSameType:4` |
+| **`soa`** | Structure-of-Arrays shallow flattening | `-link-opt -s -build-magic 0 -cc-opt -O3 -cc-opt -march=native -shallow-flatten-max-iters 1 -pre-flatten-max-iters 0 -shallow-flatten-mechanism soa -shallow-flatten-policy maxWidthSameType:4` |
+| **`conapp`** | Constructor application pre-flattening | `-link-opt -s -build-magic 0 -cc-opt -O3 -cc-opt -march=native -pre-flatten-max-iters 1 -pre-flatten-consumer-policy always -pre-flatten-resolve-policy local -pre-flatten-types-policy con -pre-flatten-recursive-steps 10 -pre-flatten-phase early -pre-flatten-transfer-policy always` |
+| **`tuple`** | Tuple pre-flattening | `-link-opt -s -build-magic 0 -cc-opt -O3 -cc-opt -march=native -pre-flatten-max-iters 1 -pre-flatten-consumer-policy always -pre-flatten-resolve-policy local -pre-flatten-types-policy tuple -pre-flatten-recursive-steps 10 -pre-flatten-phase late -pre-flatten-transfer-policy tail_only` |
 | **`none`** | Skip this configuration side (e.g. to run only the test or base config) | *(none)* |
 
 ### Output File Format
@@ -175,7 +175,7 @@ All `run*.sh` scripts define an `EXTRA_SHARED_FLAGS` setting that allows you to 
 
 By default, the benchmark scripts use the following base flags:
 ```bash
-SHARED_FLAGS='-link-opt -s -build-magic 0 -cc-opt -O2 -cc-opt -march=native'
+SHARED_FLAGS='-link-opt -s -build-magic 0 -cc-opt -O3 -cc-opt -march=native'
 ```
 
 You can override or append extra compiler flags via `EXTRA_SHARED_FLAGS` in three ways:
