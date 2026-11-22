@@ -210,6 +210,9 @@ val chunkify = control {name = "chunkify",
 val chunkJumpTable = control {name = "chunkJumpTable",
                               default = false,
                               toString = Bool.toString}
+val cCodegenPermuteEntries = control {name = "cCodegenPermuteEntries",
+                                      default = 0,
+                                      toString = Int.toString}
 val chunkMayRToSelfOpt = control {name = "chunkMayRToSelfOpt",
                                   default = true,
                                   toString = Bool.toString}

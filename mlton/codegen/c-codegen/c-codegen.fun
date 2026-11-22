@@ -1677,13 +1677,46 @@ fun output {program as Machine.Program.T {chunks, frameInfos, main, ...},
             val entries =
                let
                   val entries = ref []
+                  val entryLabels = ref []
                   val _ =
                      Vector.foreach
                      (blocks, fn Block.T {kind, label, ...} =>
                       if Kind.isEntry kind
                          then (List.push (entries, (label, labelIndex label))
-                               ; visit label)
+                               ; List.push (entryLabels, label))
                          else ())
+                  val visitOrder = List.rev (!entryLabels)
+                  val _ =
+                     case !Control.cCodegenPermuteEntries of
+                        0 => List.foreach (visitOrder, visit)
+                      | seed =>
+                           let
+                              val arr = Array.fromList visitOrder
+                              val n = Array.length arr
+                              val state = ref (Word.fromInt seed)
+                              fun nextRand (bound: int): int =
+                                 let
+                                    val s = Word.+ (Word.* (!state, 0w1664525), 0w1013904223)
+                                    val _ = state := s
+                                 in
+                                    Word.toInt (Word.mod (Word.>> (s, 0w16), Word.fromInt bound))
+                                 end
+                              fun shuffle i =
+                                 if i <= 1
+                                    then ()
+                                 else let
+                                         val j = nextRand i
+                                         val k = i - 1
+                                         val tmp = Array.sub (arr, k)
+                                         val _ = Array.update (arr, k, Array.sub (arr, j))
+                                         val _ = Array.update (arr, j, tmp)
+                                      in
+                                         shuffle k
+                                      end
+                              val _ = shuffle n
+                           in
+                              Array.foreach (arr, visit)
+                           end
                in
                   List.insertionSort (!entries, fn ((_, i1), (_, i2)) => i1 <= i2)
                end
